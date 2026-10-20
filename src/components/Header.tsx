@@ -90,6 +90,14 @@ export default function Header() {
                 📋 توقعاتي
               </Link>
             )}
+            {player && (
+              <Link
+                href="/my-prizes"
+                className="text-green-400 hover:text-green-300 font-semibold transition"
+              >
+                🎁 جوائزي
+              </Link>
+            )}
           </nav>
 
           {/* Auth / Mobile Menu */}
@@ -160,6 +168,16 @@ export default function Header() {
                 className="px-4 py-3 rounded-xl text-base font-bold transition bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30"
               >
                 📋 توقعاتي
+              </Link>
+            )}
+
+            {player && (
+              <Link
+                href="/my-prizes"
+                onClick={() => setIsOpen(false)}
+                className="px-4 py-3 rounded-xl text-base font-bold transition bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30"
+              >
+                🎁 جوائزي
               </Link>
             )}
 
