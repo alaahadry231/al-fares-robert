@@ -27,10 +27,14 @@ function pickPrize() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { code } = body;
+    const { code, player_id } = body;
 
     if (!code) {
       return NextResponse.json({ error: "الكود مطلوب" }, { status: 400 });
+    }
+
+    if (!player_id) {
+      return NextResponse.json({ error: "يجب تسجيل الدخول" }, { status: 401 });
     }
 
     const trimmedCode = code.trim().toUpperCase();
@@ -62,14 +66,14 @@ export async function POST(req: NextRequest) {
       `;
     }
 
-    // ✅ إذا "win" → نحفظ الجائزة في جدول prizes
+    // ✅ إذا "win" → نحفظ الجائزة في جدول prizes مع player_id
     if (prize.type === "win") {
       const deadline = new Date();
       deadline.setDate(deadline.getDate() + 30); // 30 يوم للمطالبة
 
       await sql`
-        insert into prizes (code_id, amount, status, deadline)
-        values (${codeId}, ${prize.amount}, 'pending', ${deadline.toISOString()})
+        insert into prizes (code_id, player_id, amount, status, deadline)
+        values (${codeId}, ${player_id}, ${prize.amount}, 'pending', ${deadline.toISOString()})
       `;
     }
 

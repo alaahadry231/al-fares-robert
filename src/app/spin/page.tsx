@@ -1,11 +1,18 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 
 type Prize = {
   type: "win" | "retry" | "lose";
   amount: number;
   label: string;
+};
+
+type Player = {
+  id: number;
+  nickname: string;
+  total_points: number;
 };
 
 const prizes = [
@@ -32,8 +39,20 @@ export default function SpinPage() {
   const [result, setResult] = useState<Prize | null>(null);
   const [error, setError] = useState("");
   const [retryCode, setRetryCode] = useState<string>("");
+  const [player, setPlayer] = useState<Player | null>(null);
 
   const segmentAngle = (Math.PI * 2) / prizes.length;
+
+  useEffect(() => {
+    const saved = localStorage.getItem("player_data");
+    if (saved) {
+      try {
+        setPlayer(JSON.parse(saved));
+      } catch {
+        // نتجاهل
+      }
+    }
+  }, []);
 
   const drawWheel = (rot: number) => {
     const canvas = canvasRef.current;
@@ -139,7 +158,7 @@ export default function SpinPage() {
 
   const handleSpin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || !player) return;
 
     setLoading(true);
     setError("");
@@ -151,7 +170,7 @@ export default function SpinPage() {
       const res = await fetch("/api/spin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: currentCode }),
+        body: JSON.stringify({ code: currentCode, player_id: player.id }),
       });
 
       const data = await res.json();
@@ -179,7 +198,6 @@ export default function SpinPage() {
 
       spinToPrize(prizeIndex, () => {
         setResult(data.prize);
-        // ✅ إذا "محاولة أخرى" → نخلي الكود بالحقل (عشان يلف مرة ثانية)
         if (data.prize.type === "retry") {
           setRetryCode(currentCode);
           setCode(currentCode);
@@ -239,8 +257,22 @@ export default function SpinPage() {
           </div>
         </div>
 
-        {/* Input Form */}
-        {!result && (
+        {/* Login required */}
+        {!player ? (
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8 text-center">
+            <div className="text-6xl mb-4">🔒</div>
+            <h3 className="text-xl font-bold mb-2">يجب تسجيل الدخول</h3>
+            <p className="text-slate-400 text-sm mb-6">
+              سجّل دخولك بتلغرام لتتمكن من لف العجلة والفوز بالجوائز
+            </p>
+            <Link
+              href="/login"
+              className="inline-block px-8 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition"
+            >
+              تسجيل الدخول
+            </Link>
+          </div>
+        ) : !result ? (
           <form
             onSubmit={handleSpin}
             className="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-4"
@@ -301,10 +333,7 @@ export default function SpinPage() {
               </p>
             </div>
           </form>
-        )}
-
-        {/* Result */}
-        {result && (
+        ) : (
           <div
             className={`bg-slate-900 rounded-2xl border-2 p-8 text-center ${
               result.type === "win"
@@ -343,7 +372,7 @@ export default function SpinPage() {
             {result.type === "win" && (
               <div className="space-y-3">
                 <p className="text-sm text-slate-300">
-                  تواصل معنا على تلغرام لاستلام جائزتك
+                  تم حفظ الجائزة في حسابك! تواصل معنا على تلغرام لاستلامها.
                 </p>
                 <a
                   href={TELEGRAM_CONTACT}
@@ -360,7 +389,6 @@ export default function SpinPage() {
               onClick={() => {
                 setResult(null);
                 setError("");
-                // إذا "محاولة أخرى" → نخلي الكود، وإلا نمسحه
                 if (result.type !== "retry") {
                   setCode("");
                   setRetryCode("");
@@ -411,8 +439,9 @@ export default function SpinPage() {
           <ul className="space-y-2 text-sm text-slate-400">
             <li>• كل كود يُستخدم مرة واحدة فقط</li>
             <li>• الجوائز تُسلّم عبر تلغرام</li>
-            <li>• في حال "محاولة أخرى"، يمكن استخدام الكود مجدداً</li>
+            <li>• في حالة "محاولة أخرى"، يمكن استخدام الكود مجدداً</li>
             <li>• لا يمكن استرداد الأكواد المستخدمة</li>
+            <li>• يجب تسجيل الدخول بتلغرام قبل اللعب</li>
           </ul>
         </div>
       </section>
