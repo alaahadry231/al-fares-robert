@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import crypto from "crypto";
+import { sendTelegramNotification } from "@/lib/telegram";
 
 export async function POST(req: NextRequest) {
   try {
@@ -89,6 +90,13 @@ export async function POST(req: NextRequest) {
         returning *
       `;
       player = created[0];
+
+      // ✅ إشعار للمدير بلاعب جديد
+      sendTelegramNotification(
+        `🆕 <b>لاعب جديد سجّل</b>\n\n👤 ${first_name}${
+          last_name ? " " + last_name : ""
+        }\n📩 @${username || "بدون معرف"}`
+      ).catch(console.error);
     }
 
     // ✅ نرجع بيانات اللاعب
