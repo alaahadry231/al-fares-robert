@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import crypto from "crypto";
 import { sendTelegramNotification } from "@/lib/telegram";
+import { waitUntil } from "@vercel/functions";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,7 +27,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ التحقق من Hash (حسب توثيق Telegram)
     const dataCheckString = Object.keys(body)
       .filter((key) => key !== "hash")
       .sort()
@@ -50,7 +50,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ التحقق من صلاحية الوقت (ما يزيد عن 24 ساعة)
     const now = Math.floor(Date.now() / 1000);
     if (now - auth_date > 86400) {
       return NextResponse.json(
@@ -59,7 +58,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ البحث عن اللاعب أو إنشاؤه
     const existingPlayer = await sql`
       select * from players where telegram_id = ${id.toString()} limit 1
     `;
@@ -67,7 +65,6 @@ export async function POST(req: NextRequest) {
     let player;
 
     if (existingPlayer.length > 0) {
-      // تحديث بيانات اللاعب الموجود
       const updated = await sql`
         update players
         set telegram_username = ${username || ""},
@@ -78,7 +75,6 @@ export async function POST(req: NextRequest) {
       `;
       player = updated[0];
     } else {
-      // إنشاء لاعب جديد
       const created = await sql`
         insert into players (telegram_id, telegram_username, nickname, password_hash)
         values (
@@ -91,15 +87,15 @@ export async function POST(req: NextRequest) {
       `;
       player = created[0];
 
-      // ✅ إشعار للمدير بلاعب جديد
-      sendTelegramNotification(
-        `🆕 <b>لاعب جديد سجّل</b>\n\n👤 ${first_name}${
-          last_name ? " " + last_name : ""
-        }\n📩 @${username || "بدون معرف"}`
-      ).catch(console.error);
+      waitUntil(
+        sendTelegramNotification(
+          `🆕 <b>لاعب جديد سجّل</b>\n\n👤 ${first_name}${
+            last_name ? " " + last_name : ""
+          }\n📩 @${username || "بدون معرف"}`
+        )
+      );
     }
 
-    // ✅ نرجع بيانات اللاعب
     return NextResponse.json({
       success: true,
       player: {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { sendTelegramNotification } from "@/lib/telegram";
+import { waitUntil } from "@vercel/functions";
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,18 +55,19 @@ export async function POST(req: NextRequest) {
       returning *
     `;
 
-    // ✅ إشعار للمدير بتوقع جديد
     const playerData = await sql`
       select nickname, telegram_username from players where id = ${player_id} limit 1
     `;
     const playerName = playerData.length > 0 ? playerData[0].nickname : "لاعب";
     const playerUsername = playerData.length > 0 ? playerData[0].telegram_username : "";
 
-    sendTelegramNotification(
-      `🎯 <b>توقع جديد</b>\n\n👤 اللاعب: ${playerName}${
-        playerUsername ? ` (@${playerUsername})` : ""
-      }\n⚽ ${match[0].team1} × ${match[0].team2}\n📊 التوقع: ${score1} - ${score2}`
-    ).catch(console.error);
+    waitUntil(
+      sendTelegramNotification(
+        `🎯 <b>توقع جديد</b>\n\n👤 اللاعب: ${playerName}${
+          playerUsername ? ` (@${playerUsername})` : ""
+        }\n⚽ ${match[0].team1} × ${match[0].team2}\n📊 التوقع: ${score1} - ${score2}`
+      )
+    );
 
     return NextResponse.json({ success: true, prediction: result[0] });
   } catch (error) {

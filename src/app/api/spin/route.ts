@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { sendTelegramNotification } from "@/lib/telegram";
+import { waitUntil } from "@vercel/functions";
 
 function pickPrize() {
   const prizes = [
@@ -55,12 +56,10 @@ export async function POST(req: NextRequest) {
     const codeId = result[0].id;
     const prize = pickPrize();
 
-    // جلب بيانات اللاعب
     const playerData = await sql`
       select nickname, telegram_username from players where id = ${player_id} limit 1
     `;
 
-    // إذا "محاولة أخرى" → ما نعلّم الكود كمستخدم
     if (prize.type !== "retry") {
       await sql`
         update spin_codes
@@ -72,25 +71,25 @@ export async function POST(req: NextRequest) {
       `;
     }
 
-    // ✅ إذا "win" → نحفظ الجائزة في جدول prizes مع player_id
     if (prize.type === "win") {
       const deadline = new Date();
-      deadline.setDate(deadline.getDate() + 30); // 30 يوم للمطالبة
+      deadline.setDate(deadline.getDate() + 30);
 
       await sql`
         insert into prizes (code_id, player_id, amount, status, deadline)
         values (${codeId}, ${player_id}, ${prize.amount}, 'pending', ${deadline.toISOString()})
       `;
 
-      // ✅ إشعار للمدير بجائزة جديدة
       const playerName = playerData.length > 0 ? playerData[0].nickname : "لاعب";
       const playerUsername = playerData.length > 0 ? playerData[0].telegram_username : "";
 
-      sendTelegramNotification(
-        `🎉 <b>جائزة جديدة!</b>\n\n👤 اللاعب: ${playerName}${
-          playerUsername ? ` (@${playerUsername})` : ""
-        }\n💰 المبلغ: ${prize.amount.toLocaleString("ar-EG")} ل.س\n🎟️ الكود: ${trimmedCode}`
-      ).catch(console.error);
+      waitUntil(
+        sendTelegramNotification(
+          `🎉 <b>جائزة جديدة!</b>\n\n👤 اللاعب: ${playerName}${
+            playerUsername ? ` (@${playerUsername})` : ""
+          }\n💰 المبلغ: ${prize.amount.toLocaleString("ar-EG")} ل.س\n🎟️ الكود: ${trimmedCode}`
+        )
+      );
     }
 
     return NextResponse.json({
