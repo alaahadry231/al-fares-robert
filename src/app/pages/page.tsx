@@ -22,7 +22,6 @@ export default function PagesPage() {
   const [search, setSearch] = useState("");
   const [copiedId, setCopiedId] = useState<number | null>(null);
   
-  // حالة عرض الصور
   const [viewingImages, setViewingImages] = useState<{
     name: string;
     images: string[];
