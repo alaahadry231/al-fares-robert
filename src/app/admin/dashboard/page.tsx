@@ -298,6 +298,20 @@ export default function AdminDashboard() {
             <p className="text-slate-400 text-sm">إدارة حسابات اللاعبين</p>
           </Link>
 
+          {/* Trusted Bots */}
+          <Link
+            href="/admin/trusted-bots"
+            className="bg-slate-900 rounded-2xl border border-slate-800 hover:border-sky-500/50 p-6 transition group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-2xl mb-4">
+              🤖
+            </div>
+            <h3 className="text-lg font-bold mb-1 group-hover:text-sky-400 transition">
+              البوتات الموثوقة
+            </h3>
+            <p className="text-slate-400 text-sm">إدارة بوتات Ichancy</p>
+          </Link>
+
           {/* Stats */}
           <Link
             href="/admin/stats"

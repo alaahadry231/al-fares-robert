@@ -6,6 +6,7 @@ import Link from "next/link";
 const publicNavItems = [
   { href: "/", label: "الرئيسية" },
   { href: "/pages", label: "البكجات" },
+  { href: "/trusted-bots", label: "البوتات الموثوقة" },
   { href: "/predict", label: "توقع واربح" },
   { href: "/spin", label: "عجلة الحظ" },
   { href: "/winners", label: "المتصدرين" },
