@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
           sendTelegramNotification(
             `🎉 <b>مبروك! ربحت جائزة</b>\n\n💰 المبلغ: ${prize.amount.toLocaleString("ar-EG")} ل.س\n🎟️ الكود: ${trimmedCode}\n\n📩 تواصل معنا لاستلام جائزتك.`,
             playerChatId,
-            "https://t.me/AlFaresRobert"
+            "https://t.me/FaresRobert"
           )
         );
       }

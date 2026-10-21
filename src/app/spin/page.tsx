@@ -31,7 +31,7 @@ const prizes = [
   { label: "100,000", color: "#0c4a6e", type: "win" },
 ];
 
-const TELEGRAM_CONTACT = "https://t.me/AlFaresRobert";
+const TELEGRAM_CONTACT = "https://t.me/FaresRobert";
 
 export default function SpinPage() {
   const router = useRouter();

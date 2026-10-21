@@ -61,7 +61,6 @@ export default function MyPrizesPage() {
 
       fetchData();
 
-      // نعيد التحقق من الربط كل 5 ثواني (بعد ما اللاعب يربط)
       const interval = setInterval(async () => {
         try {
           const res = await fetch(`/api/auth/check-link?player_id=${playerData.id}`);
@@ -194,9 +193,18 @@ export default function MyPrizesPage() {
                   📅 {formatDate(p.created_at)}
                 </div>
 
+                {/* رسالة التواصل (تظهر فقط إذا كانت الجائزة بانتظار التسليم) */}
                 {p.status === "pending" && (
-                  <div className="mt-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2 text-yellow-400 text-xs text-center">
-                    تواصل معنا على تلغرام لاستلام جائزتك
+                  <div className="mt-3">
+                    {isLinked ? (
+                      <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-green-400 text-sm text-center">
+                        ✅ جائزتك جاهزة للاستلام. تواصل معنا عبر البوت على تلغرام.
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-yellow-400 text-sm text-center">
+                        ⚠️ <b>لازم تربط حسابك بالبوت</b> لتتمكن من استلام جائزتك. اضغط على زر "ربط الحساب" بالأعلى.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
