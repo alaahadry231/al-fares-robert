@@ -15,6 +15,7 @@ type SportsPage = {
   status: string;
   is_featured: boolean;
   is_archived: boolean;
+  image_url: string | null;
 };
 
 const emptyForm = {
@@ -24,6 +25,7 @@ const emptyForm = {
   category: "عام",
   rate: "×1",
   matches_count: 0,
+  image_urls: "",
 };
 
 export default function AdminPages() {
@@ -73,6 +75,7 @@ export default function AdminPages() {
       category: page.category,
       rate: page.rate,
       matches_count: page.matches_count,
+      image_urls: page.image_url || "",
     });
     setError("");
     setShowModal(true);
@@ -83,6 +86,16 @@ export default function AdminPages() {
     setSaving(true);
     setError("");
 
+    const payload = {
+      name: form.name,
+      description: form.description,
+      code: form.code,
+      category: form.category,
+      rate: form.rate,
+      matches_count: form.matches_count,
+      image_url: form.image_urls, // نبعته بـ image_url عشان الـ API القديم
+    };
+
     const url = editingId
       ? `/api/admin/pages/${editingId}`
       : "/api/admin/pages";
@@ -92,7 +105,7 @@ export default function AdminPages() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -174,9 +187,7 @@ export default function AdminPages() {
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <Link href="/admin/dashboard" className="text-slate-400 hover:text-sky-400">
-              ←
-            </Link>
+            <Link href="/admin/dashboard" className="text-slate-400 hover:text-sky-400">←</Link>
             <h1 className="text-lg font-bold">إدارة البكجات</h1>
           </div>
           <button
@@ -344,6 +355,35 @@ export default function AdminPages() {
                   onChange={(e) => setForm({ ...form, matches_count: parseInt(e.target.value) || 0 })}
                   className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-sky-500 focus:outline-none text-white transition"
                 />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm text-slate-400 mb-2">
+                  روابط الصور (اختياري)
+                </label>
+                <p className="text-xs text-slate-500 mb-2">
+                  ضع رابط الصورة، وإذا كان هناك أكثر من صورة افصل بينهم بفاصلة ( , )
+                </p>
+                <textarea
+                  value={form.image_urls}
+                  onChange={(e) =>
+                    setForm({ ...form, image_urls: e.target.value })
+                  }
+                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-sky-500 focus:outline-none text-white transition font-mono text-sm"
+                  dir="ltr"
+                  rows={3}
+                  placeholder="https://image1.jpg , https://image2.jpg"
+                />
+                {form.image_urls && (
+                  <div className="mt-3 flex gap-2 flex-wrap">
+                    {form.image_urls.split(",").filter(url => url.trim() !== "").map((url, idx) => (
+                      <div key={idx} className="w-20 h-20 rounded-lg overflow-hidden border border-slate-800">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url.trim()} alt="معاينة" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 pt-2">
