@@ -41,19 +41,20 @@ export async function POST(req: NextRequest) {
 
     const trimmedCode = code.trim().toUpperCase();
 
-    const result = await sql`
+    // ✅ 1. فحص أولي سريع (عشان نعطي رسالة خطأ واضحة إذا الكود مستخدم من قبل)
+    const existing = await sql`
       select id, is_used from spin_codes where code = ${trimmedCode} limit 1
     `;
 
-    if (result.length === 0) {
+    if (existing.length === 0) {
       return NextResponse.json({ error: "الكود غير صحيح" }, { status: 404 });
     }
 
-    if (result[0].is_used) {
+    if (existing[0].is_used) {
       return NextResponse.json({ error: "هذا الكود مستخدم من قبل" }, { status: 400 });
     }
 
-    const codeId = result[0].id;
+    const codeId = existing[0].id;
     const prize = pickPrize();
 
     // جلب بيانات اللاعب
@@ -61,20 +62,32 @@ export async function POST(req: NextRequest) {
       select nickname, telegram_username, telegram_chat_id from players where id = ${player_id} limit 1
     `;
 
+    // ✅ 2. الحماية القصوى (Atomic Update):
+    // إذا الجائزة مو "محاولة أخرى"، منحاول نقفل الكود فوراً بشرط إنه يكون مش مستخدم.
+    // إذا رجعت بيانات، معناها إحنا أول من استخدمه (آمن).
+    // إذا رجعت فاضية، معناها في طلب تاني سبقنا بـ 0.001 ثانية (تم اعتراضه).
+    
     if (prize.type !== "retry") {
-      await sql`
+      const updateResult = await sql`
         update spin_codes
         set is_used = true,
             used_at = now(),
             prize_won = ${prize.label},
             prize_type = ${prize.type}
-        where code = ${trimmedCode}
+        where code = ${trimmedCode} and is_used = false
+        returning id
       `;
+
+      if (updateResult.length === 0) {
+        // حد تاني سبقنا واستخدم الكود بنفس اللحظة
+        return NextResponse.json({ error: "عذراً، هذا الكود تم استخدامه للتو" }, { status: 400 });
+      }
     }
 
+    // ✅ 3. إذا الجائزة win، نحفظها في جدول الجوائز
     if (prize.type === "win") {
       const deadline = new Date();
-      deadline.setDate(deadline.getDate() + 30);
+      deadline.setDate(deadline.getDate() + 30); // 30 يوم للمطالبة
 
       await sql`
         insert into prizes (code_id, player_id, amount, status, deadline)
@@ -84,7 +97,7 @@ export async function POST(req: NextRequest) {
       const playerName = playerData.length > 0 ? playerData[0].nickname : "لاعب";
       const playerUsername = playerData.length > 0 ? playerData[0].telegram_username : "";
 
-      // ✅ 1. إشعار للمدير
+      // إشعار للمدير
       waitUntil(
         sendTelegramNotification(
           `🎉 <b>جائزة جديدة!</b>\n\n👤 اللاعب: ${playerName}${
@@ -93,7 +106,7 @@ export async function POST(req: NextRequest) {
         )
       );
 
-      // ✅ 2. إشعار للاعب (إذا كان مربوط)
+      // إشعار للاعب (إذا كان مربوط)
       const playerChatId = playerData.length > 0 ? playerData[0].telegram_chat_id : null;
 
       if (playerChatId) {
