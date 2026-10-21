@@ -252,15 +252,6 @@ export default function SpinPage() {
     }
   };
 
-  // ✅ تمرير تلقائي للبطاقة بعد الفوز
-  useEffect(() => {
-    if (result?.type === "win" && receiptRef.current) {
-      setTimeout(() => {
-        receiptRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 300);
-    }
-  }, [result]);
-
   useEffect(() => {
     return () => {
       if (animationRef.current !== null) {
@@ -274,19 +265,19 @@ export default function SpinPage() {
 
   return (
     <main className="min-h-screen">
-      <section className="relative overflow-hidden py-12 text-center bg-gradient-to-b from-sky-500/10 to-slate-950">
+      <section className="relative overflow-hidden py-8 md:py-12 text-center bg-gradient-to-b from-sky-500/10 to-slate-950">
         <div className="max-w-6xl mx-auto px-4">
-          <h1 className="text-3xl md:text-5xl font-bold mb-3">
+          <h1 className="text-2xl md:text-5xl font-bold mb-2 md:mb-3">
             🎡 عجلة <span className="text-sky-400">الحظ</span>
           </h1>
-          <p className="text-slate-400 text-lg">جرّب حظك واربح جوائز نقدية</p>
+          <p className="text-slate-400 text-sm md:text-lg">جرّب حظك واربح جوائز نقدية</p>
         </div>
       </section>
 
-      <section className="max-w-2xl mx-auto px-4 py-8">
+      <section className="max-w-2xl mx-auto px-4 py-6 md:py-8">
         {/* Wheel */}
-        <div className="flex justify-center mb-8">
-          <div className="relative">
+        <div className="flex justify-center mb-6 md:mb-8">
+          <div className="relative w-full max-w-[350px] md:max-w-[450px]">
             <div className="absolute top-1/2 -right-2 -translate-y-1/2 z-10 pointer-events-none">
               <div
                 className="w-0 h-0"
@@ -303,22 +294,22 @@ export default function SpinPage() {
               ref={canvasRef}
               width={450}
               height={450}
-              className="max-w-full h-auto"
+              className="w-full h-auto"
             />
           </div>
         </div>
 
         {/* Login required */}
         {!player ? (
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8 text-center">
-            <div className="text-6xl mb-4">🔒</div>
-            <h3 className="text-xl font-bold mb-2">يجب تسجيل الدخول</h3>
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 md:p-8 text-center">
+            <div className="text-5xl md:text-6xl mb-4">🔒</div>
+            <h3 className="text-lg md:text-xl font-bold mb-2">يجب تسجيل الدخول</h3>
             <p className="text-slate-400 text-sm mb-6">
               سجّل دخولك بتلغرام لتتمكن من لف العجلة والفوز بالجوائز
             </p>
             <Link
               href="/login"
-              className="inline-block px-8 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition"
+              className="inline-block w-full md:w-auto px-8 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition"
             >
               تسجيل الدخول
             </Link>
@@ -326,14 +317,14 @@ export default function SpinPage() {
         ) : !result ? (
           <form
             onSubmit={handleSpin}
-            className="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-4"
+            className="bg-slate-900 rounded-2xl border border-slate-800 p-5 md:p-6 space-y-4"
           >
-            <div className="text-center mb-4">
-              <div className="text-4xl mb-2">🔑</div>
-              <h3 className="text-xl font-bold mb-1">
+            <div className="text-center mb-2 md:mb-4">
+              <div className="text-3xl md:text-4xl mb-2">🔑</div>
+              <h3 className="text-lg md:text-xl font-bold mb-1">
                 {retryCode ? "محاولة أخرى!" : "أدخل كود العجلة"}
               </h3>
-              <p className="text-slate-400 text-sm">
+              <p className="text-slate-400 text-xs md:text-sm">
                 {retryCode ? "اضغط دوّر العجلة لاستخدام نفس الكود" : "اكتب الكود الذي حصلت عليه"}
               </p>
             </div>
@@ -350,7 +341,7 @@ export default function SpinPage() {
               </div>
             )}
 
-            <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex flex-col gap-3">
               <input
                 type="text"
                 value={code}
@@ -358,20 +349,20 @@ export default function SpinPage() {
                 placeholder="ABCD1234"
                 maxLength={20}
                 dir="ltr"
-                className="flex-1 px-5 py-3.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-sky-500 focus:outline-none text-white placeholder:text-slate-600 font-mono text-lg tracking-widest text-center transition"
+                className="w-full px-4 py-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-sky-500 focus:outline-none text-white placeholder:text-slate-600 font-mono text-lg tracking-widest text-center transition"
                 disabled={loading || !!retryCode}
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="px-8 py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-slate-900 font-bold transition whitespace-nowrap"
+                className="w-full px-6 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 active:bg-sky-400 disabled:opacity-50 text-slate-900 font-bold transition whitespace-nowrap text-base"
               >
                 {loading ? "جاري الدوران..." : retryCode ? "🔄 دوّر مرة أخرى" : "دوّر العجلة"}
               </button>
             </div>
 
             <div className="pt-4 border-t border-slate-800">
-              <p className="text-slate-400 text-sm text-center">
+              <p className="text-slate-400 text-xs md:text-sm text-center">
                 ليس لديك كود؟{" "}
                 <a
                   href={TELEGRAM_CONTACT}
@@ -387,7 +378,7 @@ export default function SpinPage() {
         ) : (
           <div className="space-y-4">
             <div
-              className={`bg-slate-900 rounded-2xl border-2 p-8 text-center ${
+              className={`bg-slate-900 rounded-2xl border-2 p-6 md:p-8 text-center ${
                 result.type === "win"
                   ? "border-green-500/50 bg-green-500/5"
                   : result.type === "retry"
@@ -395,16 +386,16 @@ export default function SpinPage() {
                   : "border-slate-700"
               }`}
             >
-              <div className="text-6xl mb-4">
+              <div className="text-5xl md:text-6xl mb-4">
                 {result.type === "win" ? "🎉" : result.type === "retry" ? "🔄" : "😢"}
               </div>
-              <div className="text-sm text-slate-400 mb-2">
+              <div className="text-xs md:text-sm text-slate-400 mb-2">
                 {result.type === "win" && "مبروك! ربحت"}
                 {result.type === "retry" && "محاولة أخرى!"}
                 {result.type === "lose" && "حظ أوفر"}
               </div>
               <div
-                className={`text-4xl font-bold mb-6 ${
+                className={`text-3xl md:text-4xl font-bold mb-6 ${
                   result.type === "win"
                     ? "text-green-400"
                     : result.type === "retry"
@@ -417,7 +408,7 @@ export default function SpinPage() {
 
               {result.type === "win" && (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-300">
+                  <p className="text-xs md:text-sm text-slate-300">
                     تم حفظ الجائزة في حسابك! تواصل معنا على تلغرام لاستلامها.
                   </p>
 
@@ -426,7 +417,7 @@ export default function SpinPage() {
                       href={TELEGRAM_CONTACT}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-block px-8 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition"
+                      className="inline-block w-full md:w-auto px-8 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition"
                     >
                       📩 التواصل على تلغرام
                     </a>
@@ -435,7 +426,7 @@ export default function SpinPage() {
               )}
 
               {result.type === "retry" && (
-                <p className="text-sm text-yellow-300 mb-4">
+                <p className="text-xs md:text-sm text-yellow-300 mb-4">
                   🎁 حصلت على محاولة إضافية مجانية!
                 </p>
               )}
@@ -450,7 +441,7 @@ export default function SpinPage() {
                     setRetryCode("");
                   }
                 }}
-                className={`mt-6 px-6 py-2 rounded-lg text-sm transition ${
+                className={`mt-6 w-full md:w-auto px-6 py-3 rounded-xl text-sm transition ${
                   result.type === "retry"
                     ? "bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-bold"
                     : "bg-slate-800 hover:bg-slate-700 text-white"
@@ -465,27 +456,27 @@ export default function SpinPage() {
               <div className="space-y-3">
                 <div
                   ref={receiptRef}
-                  className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border-2 border-yellow-500/50 p-6"
+                  className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border-2 border-yellow-500/50 p-5 md:p-6"
                   dir="rtl"
                 >
                   <div className="text-center mb-4 pb-4 border-b border-slate-800">
-                    <div className="text-4xl mb-2">🎉</div>
-                    <div className="text-sky-400 font-bold text-xl">
+                    <div className="text-3xl md:text-4xl mb-2">🎉</div>
+                    <div className="text-sky-400 font-bold text-lg md:text-xl">
                       Al Fares Robert
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="text-[10px] md:text-xs text-slate-500 mt-1">
                       صورة جائزة - عجلة الحظ
                     </div>
                   </div>
 
-                  <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 text-center">
-                    <div className="text-xs text-slate-500 mb-1">الجائزة</div>
-                    <div className="text-3xl font-bold text-yellow-400">
+                  <div className="bg-slate-900 rounded-xl p-3 md:p-4 mb-4 border border-slate-800 text-center">
+                    <div className="text-[10px] md:text-xs text-slate-500 mb-1">الجائزة</div>
+                    <div className="text-2xl md:text-3xl font-bold text-yellow-400">
                       {result.label}
                     </div>
                   </div>
 
-                  <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 space-y-2 text-sm">
+                  <div className="bg-slate-900 rounded-xl p-3 md:p-4 mb-4 border border-slate-800 space-y-2 text-xs md:text-sm">
                     <div className="flex justify-between">
                       <span className="text-slate-400">👤 اللاعب:</span>
                       <span className="text-white font-bold">{playerName}</span>
@@ -523,7 +514,7 @@ export default function SpinPage() {
                     </div>
                   </div>
 
-                  <div className="text-center text-xs text-slate-600">
+                  <div className="text-center text-[10px] md:text-xs text-slate-600">
                     📢 <span dir="ltr">@AlFaresRobert1</span>
                   </div>
                 </div>
@@ -531,7 +522,7 @@ export default function SpinPage() {
                 <button
                   onClick={handleSaveImage}
                   disabled={savingImage || !!savedPrize}
-                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-900 font-bold transition"
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-400 disabled:opacity-50 text-slate-900 font-bold transition text-base"
                 >
                   {savingImage
                     ? "⏳ جاري الحفظ..."
@@ -545,15 +536,15 @@ export default function SpinPage() {
         )}
 
         {/* Prizes List */}
-        <div className="mt-8 bg-slate-900/50 rounded-2xl border border-slate-800 p-6">
-          <h3 className="font-bold mb-4 text-sky-400 text-center">
+        <div className="mt-8 bg-slate-900/50 rounded-2xl border border-slate-800 p-4 md:p-6">
+          <h3 className="font-bold mb-3 md:mb-4 text-sky-400 text-center text-sm md:text-base">
             🎁 الجوائز المحتملة
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {prizes.map((prize, i) => (
               <div
                 key={i}
-                className={`flex items-center gap-2 p-2 rounded-lg border text-sm ${
+                className={`flex items-center gap-1.5 md:gap-2 p-1.5 md:p-2 rounded-lg border text-xs ${
                   prize.type === "win"
                     ? "bg-green-500/5 border-green-500/20 text-green-400"
                     : prize.type === "retry"
@@ -561,10 +552,10 @@ export default function SpinPage() {
                     : "bg-slate-800/50 border-slate-700 text-slate-400"
                 }`}
               >
-                <span className="text-base">
+                <span className="text-sm md:text-base">
                   {prize.type === "win" ? "🎉" : prize.type === "retry" ? "🔄" : "😢"}
                 </span>
-                <span className="font-semibold text-xs">
+                <span className="font-semibold text-[10px] md:text-xs">
                   {prize.type === "win" ? `${prize.label} ل.س` : prize.label}
                 </span>
               </div>
@@ -573,9 +564,9 @@ export default function SpinPage() {
         </div>
 
         {/* Rules */}
-        <div className="mt-6 bg-slate-900/50 rounded-2xl border border-slate-800 p-6">
-          <h3 className="font-bold mb-3 text-sky-400">📋 قواعد العجلة:</h3>
-          <ul className="space-y-2 text-sm text-slate-400">
+        <div className="mt-4 md:mt-6 bg-slate-900/50 rounded-2xl border border-slate-800 p-4 md:p-6">
+          <h3 className="font-bold mb-2 md:mb-3 text-sky-400 text-sm md:text-base">📋 قواعد العجلة:</h3>
+          <ul className="space-y-1.5 md:space-y-2 text-xs md:text-sm text-slate-400">
             <li>• كل كود يُستخدم مرة واحدة فقط</li>
             <li>• الجوائز تُسلّم عبر تلغرام</li>
             <li>• في حالة "محاولة أخرى"، يمكن استخدام الكود مجدداً</li>
