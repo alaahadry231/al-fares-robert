@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const codeId = result[0].id;
     const prize = pickPrize();
 
-    // جلب بيانات اللاعب (عشان نعرف إذا مربوط)
+    // جلب بيانات اللاعب
     const playerData = await sql`
       select nickname, telegram_username, telegram_chat_id from players where id = ${player_id} limit 1
     `;
@@ -113,6 +113,11 @@ export async function POST(req: NextRequest) {
         type: prize.type,
         amount: prize.amount,
         label: prize.label,
+      },
+      player: {
+        id: player_id,
+        name: playerData.length > 0 ? playerData[0].nickname : "لاعب",
+        username: playerData.length > 0 ? playerData[0].telegram_username : "",
       },
     });
   } catch (error) {

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toPng } from "html-to-image";
 
 type Prize = {
   type: "win" | "retry" | "lose";
@@ -11,8 +13,8 @@ type Prize = {
 
 type Player = {
   id: number;
-  nickname: string;
-  total_points: number;
+  name: string;
+  username: string;
 };
 
 const prizes = [
@@ -30,9 +32,11 @@ const prizes = [
 const TELEGRAM_CONTACT = "https://t.me/AlFaresRobert";
 
 export default function SpinPage() {
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rotationRef = useRef(0);
   const animationRef = useRef<number | null>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,6 +44,9 @@ export default function SpinPage() {
   const [error, setError] = useState("");
   const [retryCode, setRetryCode] = useState<string>("");
   const [player, setPlayer] = useState<Player | null>(null);
+  const [savingImage, setSavingImage] = useState(false);
+  const [savedPrize, setSavedPrize] = useState<Prize | null>(null);
+  const [wonCode, setWonCode] = useState<string>("");
 
   const segmentAngle = (Math.PI * 2) / prizes.length;
 
@@ -163,6 +170,8 @@ export default function SpinPage() {
     setLoading(true);
     setError("");
     setResult(null);
+    setSavedPrize(null);
+    setWonCode("");
 
     const currentCode = code.trim();
 
@@ -198,6 +207,9 @@ export default function SpinPage() {
 
       spinToPrize(prizeIndex, () => {
         setResult(data.prize);
+        if (data.prize.type === "win") {
+          setWonCode(currentCode);
+        }
         if (data.prize.type === "retry") {
           setRetryCode(currentCode);
           setCode(currentCode);
@@ -210,6 +222,31 @@ export default function SpinPage() {
     } catch {
       setError("تعذر الاتصال بالخادم");
       setLoading(false);
+    }
+  };
+
+  const handleSaveImage = async () => {
+    if (!receiptRef.current || !result || !player) return;
+
+    setSavingImage(true);
+    try {
+      const dataUrl = await toPng(receiptRef.current, {
+        backgroundColor: "#0f172a",
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+
+      const link = document.createElement("a");
+      link.download = `prize-${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+
+      setSavedPrize(result);
+    } catch (err) {
+      console.error("Screenshot error:", err);
+      alert("تعذر حفظ الصورة، جرّب مرة أخرى");
+    } finally {
+      setSavingImage(false);
     }
   };
 
@@ -334,74 +371,159 @@ export default function SpinPage() {
             </div>
           </form>
         ) : (
-          <div
-            className={`bg-slate-900 rounded-2xl border-2 p-8 text-center ${
-              result.type === "win"
-                ? "border-green-500/50 bg-green-500/5"
-                : result.type === "retry"
-                ? "border-yellow-500/50 bg-yellow-500/5"
-                : "border-slate-700"
-            }`}
-          >
-            <div className="text-6xl mb-4">
-              {result.type === "win" ? "🎉" : result.type === "retry" ? "🔄" : "😢"}
-            </div>
-            <div className="text-sm text-slate-400 mb-2">
-              {result.type === "win" && "مبروك! ربحت"}
-              {result.type === "retry" && "محاولة أخرى!"}
-              {result.type === "lose" && "حظ أوفر"}
-            </div>
+          <div className="space-y-4">
             <div
-              className={`text-4xl font-bold mb-6 ${
+              className={`bg-slate-900 rounded-2xl border-2 p-8 text-center ${
                 result.type === "win"
-                  ? "text-green-400"
+                  ? "border-green-500/50 bg-green-500/5"
                   : result.type === "retry"
-                  ? "text-yellow-400"
-                  : "text-slate-400"
+                  ? "border-yellow-500/50 bg-yellow-500/5"
+                  : "border-slate-700"
               }`}
             >
-              {result.type === "retry" ? "لف مرة أخرى" : result.label}
+              <div className="text-6xl mb-4">
+                {result.type === "win" ? "🎉" : result.type === "retry" ? "🔄" : "😢"}
+              </div>
+              <div className="text-sm text-slate-400 mb-2">
+                {result.type === "win" && "مبروك! ربحت"}
+                {result.type === "retry" && "محاولة أخرى!"}
+                {result.type === "lose" && "حظ أوفر"}
+              </div>
+              <div
+                className={`text-4xl font-bold mb-6 ${
+                  result.type === "win"
+                    ? "text-green-400"
+                    : result.type === "retry"
+                    ? "text-yellow-400"
+                    : "text-slate-400"
+                }`}
+              >
+                {result.type === "retry" ? "لف مرة أخرى" : result.label}
+              </div>
+
+              {result.type === "win" && (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-300">
+                    تم حفظ الجائزة في حسابك! تواصل معنا على تلغرام لاستلامها.
+                  </p>
+
+                  {/* زر حفظ الصورة */}
+                  <button
+                    onClick={handleSaveImage}
+                    disabled={savingImage || !!savedPrize}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-900 font-bold transition"
+                  >
+                    {savingImage
+                      ? "⏳ جاري الحفظ..."
+                      : savedPrize
+                      ? "✅ تم حفظ الصورة"
+                      : "📸 احفظ صورة الجائزة"}
+                  </button>
+
+                  <div>
+                    <a
+                      href={TELEGRAM_CONTACT}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block px-8 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition"
+                    >
+                      📩 التواصل على تلغرام
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {result.type === "retry" && (
+                <p className="text-sm text-yellow-300 mb-4">
+                  🎁 حصلت على محاولة إضافية مجانية!
+                </p>
+              )}
+
+              <button
+                onClick={() => {
+                  setResult(null);
+                  setError("");
+                  setWonCode("");
+                  if (result.type !== "retry") {
+                    setCode("");
+                    setRetryCode("");
+                  }
+                }}
+                className={`mt-6 px-6 py-2 rounded-lg text-sm transition ${
+                  result.type === "retry"
+                    ? "bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-bold"
+                    : "bg-slate-800 hover:bg-slate-700 text-white"
+                }`}
+              >
+                {result.type === "retry" ? "🔄 لف مرة أخرى" : "العودة"}
+              </button>
             </div>
 
-            {result.type === "retry" && (
-              <p className="text-sm text-yellow-300 mb-4">
-                🎁 حصلت على محاولة إضافية مجانية!
-              </p>
-            )}
-
-            {result.type === "win" && (
-              <div className="space-y-3">
-                <p className="text-sm text-slate-300">
-                  تم حفظ الجائزة في حسابك! تواصل معنا على تلغرام لاستلامها.
-                </p>
-                <a
-                  href={TELEGRAM_CONTACT}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block px-8 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition"
-                >
-                  📩 التواصل على تلغرام
-                </a>
-              </div>
-            )}
-
-            <button
-              onClick={() => {
-                setResult(null);
-                setError("");
-                if (result.type !== "retry") {
-                  setCode("");
-                  setRetryCode("");
-                }
-              }}
-              className={`mt-6 px-6 py-2 rounded-lg text-sm transition ${
-                result.type === "retry"
-                  ? "bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-bold"
-                  : "bg-slate-800 hover:bg-slate-700 text-white"
-              }`}
+            {/* بطاقة الصورة (مخفية، بس بتنحفظ) */}
+            <div
+              ref={receiptRef}
+              className="fixed -left-[9999px] top-0 bg-slate-950 p-8 rounded-2xl border-2 border-yellow-500/50 w-[400px]"
+              dir="rtl"
             >
-              {result.type === "retry" ? "🔄 لف مرة أخرى" : "العودة"}
-            </button>
+              <div className="text-center mb-4 pb-4 border-b border-slate-800">
+                <div className="text-4xl mb-2">🎉</div>
+                <div className="text-sky-400 font-bold text-xl">
+                  Al Fares Robert
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  صورة جائزة - عجلة الحظ
+                </div>
+              </div>
+
+              <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 text-center">
+                <div className="text-xs text-slate-500 mb-1">الجائزة</div>
+                <div className="text-3xl font-bold text-yellow-400">
+                  {result.label}
+                </div>
+              </div>
+
+              <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">👤 اللاعب:</span>
+                  <span className="text-white font-bold">{player.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">🆔 ID:</span>
+                  <span className="text-white font-mono">{player.id}</span>
+                </div>
+                {player.username && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">📩 تلغرام:</span>
+                    <span className="text-sky-400 font-mono" dir="ltr">
+                      @{player.username}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-400">🎟️ الكود:</span>
+                  <span className="text-emerald-400 font-mono" dir="ltr">
+                    {wonCode || "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">📅 التاريخ:</span>
+                  <span className="text-white text-xs">
+                    {new Date().toLocaleString("ar-EG", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Asia/Damascus",
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-center text-xs text-slate-600">
+                📢 @AlFaresRobert1
+              </div>
+            </div>
           </div>
         )}
 
