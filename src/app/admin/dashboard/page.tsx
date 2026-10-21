@@ -12,6 +12,11 @@ export default function AdminDashboard() {
   const [maintenanceMode, setMaintenanceMode] = useState<boolean | null>(null);
   const [togglingMaintenance, setTogglingMaintenance] = useState(false);
 
+  // حالة المسح (Reset)
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
+
   const fetchMaintenanceStatus = async () => {
     try {
       const res = await fetch("/api/admin/maintenance");
@@ -48,6 +53,36 @@ export default function AdminDashboard() {
       alert("تعذر الاتصال بالخادم");
     } finally {
       setTogglingMaintenance(false);
+    }
+  };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetConfirmText !== "مسح") {
+      alert("يجب كتابة كلمة 'مسح' بالضبط");
+      return;
+    }
+
+    setResetting(true);
+    try {
+      const res = await fetch("/api/admin/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmText: resetConfirmText }),
+      });
+
+      if (!res.ok) {
+        alert("فشل المسح");
+        return;
+      }
+
+      alert("✅ تم مسح جميع البيانات بنجاح! الموقع رجع للصفر.");
+      setShowResetModal(false);
+      setResetConfirmText("");
+    } catch {
+      alert("تعذر الاتصال بالخادم");
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -113,7 +148,7 @@ export default function AdminDashboard() {
       <section className="max-w-6xl mx-auto px-4 py-8">
         {/* Maintenance Control Card */}
         <div
-          className={`mb-6 rounded-2xl border-2 p-5 flex items-center justify-between flex-wrap gap-4 transition ${
+          className={`mb-4 rounded-2xl border-2 p-5 flex items-center justify-between flex-wrap gap-4 transition ${
             maintenanceMode
               ? "bg-yellow-500/5 border-yellow-500/30"
               : "bg-green-500/5 border-green-500/30"
@@ -159,6 +194,31 @@ export default function AdminDashboard() {
               : maintenanceMode
               ? "✅ إيقاف الصيانة"
               : "🔧 تفعيل الصيانة"}
+          </button>
+        </div>
+
+        {/* Danger Zone Card */}
+        <div className="mb-8 rounded-2xl border-2 border-red-500/30 bg-red-500/5 p-5 flex items-center justify-between flex-wrap gap-4 transition">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl bg-red-500/20 border border-red-500/40">
+              🗑️
+            </div>
+            <div>
+              <div className="text-sm text-slate-400 mb-1">منطقة الخطر</div>
+              <div className="text-base font-bold text-red-400">
+                تصفير الموقع بالكامل (مسح كل البيانات)
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setShowResetModal(true);
+              setResetConfirmText("");
+            }}
+            className="px-6 py-3 rounded-xl font-bold text-white transition whitespace-nowrap bg-red-500 hover:bg-red-400"
+          >
+            🗑️ تصفير الموقع
           </button>
         </div>
 
@@ -253,6 +313,62 @@ export default function AdminDashboard() {
           </Link>
         </div>
       </section>
+
+      {/* Reset Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 rounded-2xl border-2 border-red-500/50 w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+              <h3 className="text-xl font-bold text-red-400">⚠️ تصفير الموقع</h3>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleReset} className="p-5 space-y-4">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm leading-relaxed">
+                <b>تحذير:</b> هذا الإجراء سيقوم بمسح <b>كل</b> البيانات (اللاعبين، البكجات، المباريات، التوقعات، الأكواد، والجوائز) نهائياً. 
+                <br />
+                لا يمكن التراجع عن هذه الخطوة!
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">
+                  للتأكيد، اكتب كلمة <b className="text-red-400">مسح</b> في الحقل التالي:
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-red-500 focus:outline-none text-white text-center transition"
+                  placeholder="مسح"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={resetting || resetConfirmText !== "مسح"}
+                  className="flex-1 px-6 py-3 rounded-xl bg-red-500 hover:bg-red-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold transition"
+                >
+                  {resetting ? "جاري المسح..." : "🗑️ تأكيد المسح"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
