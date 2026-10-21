@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 
-// GET: جلب كل البكجات
 export async function GET() {
   try {
     const data = await sql`
@@ -15,11 +14,10 @@ export async function GET() {
   }
 }
 
-// POST: إضافة بكج جديد
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, description, code, category, rate, matches_count } = body;
+    const { name, description, code, category, rate, matches_count, image_url } = body;
 
     if (!name || !code) {
       return NextResponse.json(
@@ -29,8 +27,8 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await sql`
-      insert into sports_pages (name, description, code, category, rate, matches_count)
-      values (${name}, ${description || ""}, ${code}, ${category || "عام"}, ${rate || "×1"}, ${matches_count || 0})
+      insert into sports_pages (name, description, code, category, rate, matches_count, image_url)
+      values (${name}, ${description || ""}, ${code}, ${category || "عام"}, ${rate || "×1"}, ${matches_count || 0}, ${image_url || ""})
       returning *
     `;
 

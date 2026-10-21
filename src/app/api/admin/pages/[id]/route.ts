@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     // تعديل عادي
-    const { name, description, code, category, rate, matches_count } = body;
+    const { name, description, code, category, rate, matches_count, image_url } = body;
 
     const result = await sql`
       update sports_pages
@@ -52,6 +52,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
           category = ${category || "عام"},
           rate = ${rate || "×1"},
           matches_count = ${matches_count || 0},
+          image_url = ${image_url || ""},
           updated_at = now()
       where id = ${id}
       returning *
