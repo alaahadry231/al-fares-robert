@@ -85,6 +85,8 @@ export default function MyPrizesPage() {
 
   if (!player) return null;
 
+  const botLink = `https://t.me/AlFaresRobert_bot?start=player_${player.id}`;
+
   return (
     <main className="min-h-screen">
       <section className="relative overflow-hidden py-12 text-center bg-gradient-to-b from-sky-500/10 to-slate-950">
@@ -99,6 +101,27 @@ export default function MyPrizesPage() {
       </section>
 
       <section className="max-w-4xl mx-auto px-4 py-8">
+        {/* زr ربط الحساب */}
+        <div className="mb-6 bg-sky-500/10 border-2 border-sky-500/30 rounded-2xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="text-3xl">🤖</div>
+            <div className="flex-1">
+              <h3 className="font-bold mb-1">اربط حسابك بالبوت</h3>
+              <p className="text-slate-400 text-sm mb-3">
+                اربط حسابك لتستلم إشعارات فورية عندما تربح جوائز أو تظهر نتائج توقعاتك
+              </p>
+              <a
+                href={botLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold text-sm transition"
+              >
+                📩 ربط الحساب عبر تلغرام
+              </a>
+            </div>
+          </div>
+        </div>
+
         {loading ? (
           <div className="text-center py-20 text-slate-500">جاري التحميل...</div>
         ) : prizes.length === 0 ? (
