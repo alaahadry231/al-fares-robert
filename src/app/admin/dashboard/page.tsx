@@ -7,14 +7,57 @@ import Link from "next/link";
 export default function AdminDashboard() {
   const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
+  
+  // حالة الصيانة
+  const [maintenanceMode, setMaintenanceMode] = useState<boolean | null>(null);
+  const [togglingMaintenance, setTogglingMaintenance] = useState(false);
+
+  const fetchMaintenanceStatus = async () => {
+    try {
+      const res = await fetch("/api/admin/maintenance");
+      const json = await res.json();
+      setMaintenanceMode(json.enabled ?? false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const toggleMaintenance = async () => {
+    if (togglingMaintenance || maintenanceMode === null) return;
+
+    const newState = !maintenanceMode;
+    const confirmMessage = newState
+      ? "هل أنت متأكد من تفعيل الصيانة؟ الموقع رح يتوقف للزوار (اللاعبين المسجلين رح يقدروا يفوتوا)."
+      : "هل أنت متأكد من إيقاف الصيانة؟ الموقع رح يرجع يشتغل للكل.";
+
+    if (!confirm(confirmMessage)) return;
+
+    setTogglingMaintenance(true);
+    try {
+      const res = await fetch("/api/admin/maintenance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newState }),
+      });
+      if (!res.ok) {
+        alert("فشل التحديث");
+        return;
+      }
+      setMaintenanceMode(newState);
+    } catch {
+      alert("تعذر الاتصال بالخادم");
+    } finally {
+      setTogglingMaintenance(false);
+    }
+  };
 
   useEffect(() => {
-    // نتحقق من تسجيل الدخول
     const isLoggedIn = localStorage.getItem("admin_logged_in");
     if (!isLoggedIn) {
       router.push("/admin");
     } else {
       setIsChecking(false);
+      fetchMaintenanceStatus();
     }
   }, [router]);
 
@@ -68,6 +111,57 @@ export default function AdminDashboard() {
       </header>
 
       <section className="max-w-6xl mx-auto px-4 py-8">
+        {/* Maintenance Control Card */}
+        <div
+          className={`mb-6 rounded-2xl border-2 p-5 flex items-center justify-between flex-wrap gap-4 transition ${
+            maintenanceMode
+              ? "bg-yellow-500/5 border-yellow-500/30"
+              : "bg-green-500/5 border-green-500/30"
+          }`}
+        >
+          <div className="flex items-center gap-4">
+            <div
+              className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                maintenanceMode
+                  ? "bg-yellow-500/20 border border-yellow-500/40"
+                  : "bg-green-500/20 border border-green-500/40"
+              }`}
+            >
+              {maintenanceMode ? "🔧" : "✅"}
+            </div>
+            <div>
+              <div className="text-sm text-slate-400 mb-1">حالة الموقع</div>
+              <div
+                className={`text-base font-bold ${
+                  maintenanceMode ? "text-yellow-400" : "text-green-400"
+                }`}
+              >
+                {maintenanceMode === null
+                  ? "جاري التحميل..."
+                  : maintenanceMode
+                  ? "🔧 تحت الصيانة (الزوار ممنوعين)"
+                  : "✅ الموقع يعمل بشكل طبيعي"}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={toggleMaintenance}
+            disabled={togglingMaintenance || maintenanceMode === null}
+            className={`px-6 py-3 rounded-xl font-bold text-white transition whitespace-nowrap ${
+              maintenanceMode
+                ? "bg-green-500 hover:bg-green-400"
+                : "bg-yellow-500 hover:bg-yellow-400 text-slate-900"
+            } disabled:opacity-50`}
+          >
+            {togglingMaintenance
+              ? "جاري التحديث..."
+              : maintenanceMode
+              ? "✅ إيقاف الصيانة"
+              : "🔧 تفعيل الصيانة"}
+          </button>
+        </div>
+
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-2">أهلاً بك 👋</h2>
           <p className="text-slate-400">اختر قسم لإدارته</p>
