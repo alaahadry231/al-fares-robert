@@ -46,6 +46,12 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <Link
+              href="/admin/stats"
+              className="px-4 py-2 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 text-sm border border-sky-500/30 transition"
+            >
+              📊 الإحصائيات
+            </Link>
+            <Link
               href="/"
               className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-sm transition"
             >
