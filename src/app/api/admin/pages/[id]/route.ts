@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       return NextResponse.json({ data: result[0] });
     }
 
-    // تعديل عادي
+    // تعديل عادي (مع حفظ الصور)
     const { name, description, code, category, rate, matches_count, image_url } = body;
 
     const result = await sql`
