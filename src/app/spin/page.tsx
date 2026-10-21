@@ -462,7 +462,7 @@ export default function SpinPage() {
             {/* بطاقة الصورة (مخفية، بس بتنحفظ) */}
             <div
               ref={receiptRef}
-              className="fixed -left-[9999px] top-0 bg-slate-950 p-8 rounded-2xl border-2 border-yellow-500/50 w-[400px]"
+              className="absolute top-0 left-0 bg-slate-950 p-8 rounded-2xl border-2 border-yellow-500/50 w-[400px] opacity-0 pointer-events-none z-[-1]"
               dir="rtl"
             >
               <div className="text-center mb-4 pb-4 border-b border-slate-800">
