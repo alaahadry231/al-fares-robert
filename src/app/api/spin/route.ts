@@ -95,12 +95,13 @@ export async function POST(req: NextRequest) {
 
       // ✅ 2. إشعار للاعب (إذا كان مربوط)
       const playerChatId = playerData.length > 0 ? playerData[0].telegram_chat_id : null;
-      
+
       if (playerChatId) {
         waitUntil(
           sendTelegramNotification(
             `🎉 <b>مبروك! ربحت جائزة</b>\n\n💰 المبلغ: ${prize.amount.toLocaleString("ar-EG")} ل.س\n🎟️ الكود: ${trimmedCode}\n\n📩 تواصل معنا لاستلام جائزتك.`,
-            playerChatId
+            playerChatId,
+            "https://t.me/AlFaresRobert"
           )
         );
       }

@@ -1,6 +1,7 @@
 export async function sendTelegramNotification(
   message: string,
-  customChatId?: string
+  customChatId?: string,
+  buttonUrl?: string
 ) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = customChatId || process.env.TELEGRAM_CHAT_ID;
@@ -11,16 +12,32 @@ export async function sendTelegramNotification(
   }
 
   try {
+    const payload: Record<string, unknown> = {
+      chat_id: chatId,
+      text: message,
+      parse_mode: "HTML",
+    };
+
+    // ✅ إضافة زر رابط إذا تم تمريره
+    if (buttonUrl) {
+      payload.reply_markup = {
+        inline_keyboard: [
+          [
+            {
+              text: "📩 تواصل معنا لاستلام الجائزة",
+              url: buttonUrl,
+            },
+          ],
+        ],
+      };
+    }
+
     const res = await fetch(
       `https://api.telegram.org/bot${botToken}/sendMessage`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: "HTML",
-        }),
+        body: JSON.stringify(payload),
       }
     );
 
