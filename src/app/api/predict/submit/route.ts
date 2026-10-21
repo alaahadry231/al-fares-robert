@@ -56,10 +56,11 @@ export async function POST(req: NextRequest) {
     `;
 
     const playerData = await sql`
-      select nickname, telegram_username from players where id = ${player_id} limit 1
+      select nickname, telegram_username, telegram_id from players where id = ${player_id} limit 1
     `;
     const playerName = playerData.length > 0 ? playerData[0].nickname : "لاعب";
     const playerUsername = playerData.length > 0 ? playerData[0].telegram_username : "";
+    const playerTgId = playerData.length > 0 ? playerData[0].telegram_id : "";
 
     waitUntil(
       sendTelegramNotification(
@@ -69,7 +70,20 @@ export async function POST(req: NextRequest) {
       )
     );
 
-    return NextResponse.json({ success: true, prediction: result[0] });
+    return NextResponse.json({
+      success: true,
+      prediction: result[0],
+      match: {
+        team1: match[0].team1,
+        team2: match[0].team2,
+      },
+      player: {
+        id: player_id,
+        name: playerName,
+        username: playerUsername,
+        telegram_id: playerTgId,
+      },
+    });
   } catch (error) {
     console.error("Submit prediction error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });

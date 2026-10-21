@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toPng } from "html-to-image";
 
 type Match = {
   id: number;
@@ -16,9 +18,9 @@ type Match = {
 
 type Player = {
   id: number;
-  nickname: string;
+  telegram_id: string;
   telegram_username: string;
-  total_points: number;
+  nickname: string;
 };
 
 type Prediction = {
@@ -31,6 +33,10 @@ type Prediction = {
 };
 
 export default function PredictPage() {
+  const router = useRouter();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
+
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [player, setPlayer] = useState<Player | null>(null);
@@ -40,9 +46,14 @@ export default function PredictPage() {
   const [score2, setScore2] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [savedPrediction, setSavedPrediction] = useState<{
+    match: Match;
+    score1: number;
+    score2: number;
+  } | null>(null);
+  const [savingImage, setSavingImage] = useState(false);
 
   useEffect(() => {
-    // نقرأ اللاعب المسجل
     const saved = localStorage.getItem("player_data");
     if (saved) {
       try {
@@ -67,7 +78,6 @@ export default function PredictPage() {
     fetchMatches();
   }, []);
 
-  // جلب توقعات اللاعب
   useEffect(() => {
     if (!player) return;
 
@@ -115,8 +125,26 @@ export default function PredictPage() {
         return;
       }
 
-      // نحدّث التوقعات
-      setMyPredictions([...myPredictions, data.prediction]);
+      // نضيف التوقع الجديد
+      setMyPredictions([
+        ...myPredictions,
+        {
+          id: data.prediction.id,
+          match_id: activeMatch.id,
+          score1: parseInt(score1),
+          score2: parseInt(score2),
+          points: 0,
+          is_correct: false,
+        },
+      ]);
+
+      // نحفظ بيانات التوقع عشان نعرض البطاقة
+      setSavedPrediction({
+        match: activeMatch,
+        score1: parseInt(score1),
+        score2: parseInt(score2),
+      });
+
       setActiveMatch(null);
       setScore1("");
       setScore2("");
@@ -127,10 +155,49 @@ export default function PredictPage() {
     }
   };
 
+  const handleSaveImage = async () => {
+    if (!receiptRef.current || !player || !savedPrediction) return;
+
+    setSavingImage(true);
+    try {
+      const dataUrl = await toPng(receiptRef.current, {
+        backgroundColor: "#0f172a",
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+
+      const link = document.createElement("a");
+      link.download = `prediction-${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error("Screenshot error:", err);
+      alert("تعذر حفظ الصورة، جرّب مرة أخرى");
+    } finally {
+      setSavingImage(false);
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
       return date.toLocaleString("ar-EG", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Damascus",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatFullDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleString("ar-EG", {
+        year: "numeric",
         month: "short",
         day: "numeric",
         hour: "2-digit",
@@ -154,7 +221,7 @@ export default function PredictPage() {
           </p>
           {player && (
             <div className="mt-4 inline-block px-4 py-2 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 text-sm">
-              👋 أهلاً {player.nickname} • ⭐ {player.total_points} نقطة
+              👋 أهلاً {player.nickname || "لاعب"} • ⭐ 0 نقطة
             </div>
           )}
         </div>
@@ -237,6 +304,90 @@ export default function PredictPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* بطاقة التوقع الأخير (للحفظ) */}
+        {savedPrediction && player && (
+          <div className="max-w-md mx-auto mt-8 space-y-3">
+            <h3 className="text-center text-sky-400 font-bold">📸 احفظ صورة توقعك</h3>
+
+            <div
+              ref={receiptRef}
+              className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border-2 border-sky-500/50 p-6"
+              dir="rtl"
+            >
+              <div className="text-center mb-4 pb-4 border-b border-slate-800">
+                <div className="text-4xl mb-2">🎯</div>
+                <div className="text-sky-400 font-bold text-xl">
+                  Al Fares Robert
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  صورة توقع - توقع واربح
+                </div>
+              </div>
+
+              <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 text-center">
+                <div className="text-xs text-slate-500 mb-1">المباراة</div>
+                <div className="text-lg font-bold text-white">
+                  {savedPrediction.match.team1} × {savedPrediction.match.team2}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  {savedPrediction.match.league || ""}
+                </div>
+              </div>
+
+              <div className="bg-sky-500/10 rounded-xl p-4 mb-4 border border-sky-500/30 text-center">
+                <div className="text-xs text-slate-400 mb-1">توقعك</div>
+                <div className="text-3xl font-bold text-sky-400">
+                  {savedPrediction.score1} - {savedPrediction.score2}
+                </div>
+              </div>
+
+              <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">👤 اللاعب:</span>
+                  <span className="text-white font-bold">{player.nickname || "لاعب"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">🆔 ID:</span>
+                  <span className="text-white font-mono" dir="ltr">{player.telegram_id || "—"}</span>
+                </div>
+                {player.telegram_username && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">📩 تلغرام:</span>
+                    <span className="text-sky-400 font-mono" dir="ltr">
+                      @{player.telegram_username}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-400">📅 التاريخ:</span>
+                  <span className="text-white text-xs">
+                    {formatFullDate(savedPrediction.match.match_date)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-center text-xs text-slate-600">
+                📢 <span dir="ltr">@AlFaresRobert1</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveImage}
+              disabled={savingImage}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-900 font-bold transition"
+            >
+              {savingImage ? "⏳ جاري الحفظ..." : "📸 احفظ الصورة"}
+            </button>
+
+            <button
+              onClick={() => setSavedPrediction(null)}
+              className="w-full px-6 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-sm transition"
+            >
+              إغلاق
+            </button>
           </div>
         )}
       </section>
