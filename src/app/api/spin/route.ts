@@ -56,8 +56,9 @@ export async function POST(req: NextRequest) {
     const codeId = result[0].id;
     const prize = pickPrize();
 
+    // جلب بيانات اللاعب (عشان نعرف إذا مربوط)
     const playerData = await sql`
-      select nickname, telegram_username from players where id = ${player_id} limit 1
+      select nickname, telegram_username, telegram_chat_id from players where id = ${player_id} limit 1
     `;
 
     if (prize.type !== "retry") {
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
       const playerName = playerData.length > 0 ? playerData[0].nickname : "لاعب";
       const playerUsername = playerData.length > 0 ? playerData[0].telegram_username : "";
 
+      // ✅ 1. إشعار للمدير
       waitUntil(
         sendTelegramNotification(
           `🎉 <b>جائزة جديدة!</b>\n\n👤 اللاعب: ${playerName}${
@@ -90,6 +92,18 @@ export async function POST(req: NextRequest) {
           }\n💰 المبلغ: ${prize.amount.toLocaleString("ar-EG")} ل.س\n🎟️ الكود: ${trimmedCode}`
         )
       );
+
+      // ✅ 2. إشعار للاعب (إذا كان مربوط)
+      const playerChatId = playerData.length > 0 ? playerData[0].telegram_chat_id : null;
+      
+      if (playerChatId) {
+        waitUntil(
+          sendTelegramNotification(
+            `🎉 <b>مبروك! ربحت جائزة</b>\n\n💰 المبلغ: ${prize.amount.toLocaleString("ar-EG")} ل.س\n🎟️ الكود: ${trimmedCode}\n\n📩 تواصل معنا لاستلام جائزتك.`,
+            playerChatId
+          )
+        );
+      }
     }
 
     return NextResponse.json({
