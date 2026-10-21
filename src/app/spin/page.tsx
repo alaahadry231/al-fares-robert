@@ -13,8 +13,10 @@ type Prize = {
 
 type Player = {
   id: number;
-  name: string;
-  username: string;
+  telegram_id: string;
+  telegram_username: string;
+  nickname: string;
+  name?: string;
 };
 
 const prizes = [
@@ -258,6 +260,9 @@ export default function SpinPage() {
     };
   }, []);
 
+  const playerName = player?.nickname || player?.name || "لاعب";
+  const playerTgId = player?.telegram_id || "—";
+
   return (
     <main className="min-h-screen">
       <section className="relative overflow-hidden py-12 text-center bg-gradient-to-b from-sky-500/10 to-slate-950">
@@ -446,7 +451,7 @@ export default function SpinPage() {
               </button>
             </div>
 
-            {/* بطاقة الجائزة الظاهرة (للتصوير) */}
+            {/* بطاقة الجائزة الظاهرة */}
             {result.type === "win" && (
               <div className="space-y-3">
                 <div
@@ -474,17 +479,17 @@ export default function SpinPage() {
                   <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-slate-400">👤 اللاعب:</span>
-                      <span className="text-white font-bold">{player.name}</span>
+                      <span className="text-white font-bold">{playerName}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">🆔 ID:</span>
-                      <span className="text-white font-mono">{player.id}</span>
+                      <span className="text-white font-mono" dir="ltr">{playerTgId}</span>
                     </div>
-                    {player.username && (
+                    {player?.telegram_username && (
                       <div className="flex justify-between">
                         <span className="text-slate-400">📩 تلغرام:</span>
                         <span className="text-sky-400 font-mono" dir="ltr">
-                          @{player.username}
+                          @{player.telegram_username}
                         </span>
                       </div>
                     )}
@@ -510,7 +515,7 @@ export default function SpinPage() {
                   </div>
 
                   <div className="text-center text-xs text-slate-600">
-                    📢 @AlFaresRobert1
+                    📢 <span dir="ltr">@AlFaresRobert1</span>
                   </div>
                 </div>
 
