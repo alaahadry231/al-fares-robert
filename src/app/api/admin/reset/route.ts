@@ -14,15 +14,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // مسح الجداول بالترتيب الصحيح (عشان المفاتيح الأجنبية)
+    // 1. مسح الجداول المرتبطة أولاً (عشان المفاتيح الأجنبية)
     await sql`delete from prizes`;
     await sql`delete from predictions`;
     await sql`delete from spin_codes`;
+    
+    // 2. مسح الجداول الأساسية
     await sql`delete from matches`;
     await sql`delete from sports_pages`;
     await sql`delete from players`;
 
-    // إعادة تصفير العداد (Auto Increment)
+    // 3. إعادة تصفير العداد (Auto Increment)
     await sql`alter table prizes restart with 1`;
     await sql`alter table predictions restart with 1`;
     await sql`alter table spin_codes restart with 1`;
@@ -31,8 +33,11 @@ export async function POST(req: NextRequest) {
     await sql`alter table players restart with 1`;
 
     return NextResponse.json({ success: true, message: "تم مسح جميع البيانات بنجاح" });
-  } catch (error) {
-    console.error("Reset error:", error);
-    return NextResponse.json({ error: "حدث خطأ أثناء المسح" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Reset error details:", error);
+    return NextResponse.json(
+      { error: error.message || "حدث خطأ أثناء المسح" }, 
+      { status: 500 }
+    );
   }
 }
