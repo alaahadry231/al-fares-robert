@@ -407,19 +407,6 @@ export default function SpinPage() {
                     تم حفظ الجائزة في حسابك! تواصل معنا على تلغرام لاستلامها.
                   </p>
 
-                  {/* زر حفظ الصورة */}
-                  <button
-                    onClick={handleSaveImage}
-                    disabled={savingImage || !!savedPrize}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-900 font-bold transition"
-                  >
-                    {savingImage
-                      ? "⏳ جاري الحفظ..."
-                      : savedPrize
-                      ? "✅ تم حفظ الصورة"
-                      : "📸 احفظ صورة الجائزة"}
-                  </button>
-
                   <div>
                     <a
                       href={TELEGRAM_CONTACT}
@@ -459,71 +446,87 @@ export default function SpinPage() {
               </button>
             </div>
 
-            {/* بطاقة الصورة (مخفية، بس بتنحفظ) */}
-            <div
-              ref={receiptRef}
-              className="fixed top-0 left-0 bg-slate-950 p-8 rounded-2xl border-2 border-yellow-500/50 w-[400px] pointer-events-none z-[-999]"
-              dir="rtl"
-            >
-              <div className="text-center mb-4 pb-4 border-b border-slate-800">
-                <div className="text-4xl mb-2">🎉</div>
-                <div className="text-sky-400 font-bold text-xl">
-                  Al Fares Robert
-                </div>
-                <div className="text-xs text-slate-500 mt-1">
-                  صورة جائزة - عجلة الحظ
-                </div>
-              </div>
-
-              <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 text-center">
-                <div className="text-xs text-slate-500 mb-1">الجائزة</div>
-                <div className="text-3xl font-bold text-yellow-400">
-                  {result.label}
-                </div>
-              </div>
-
-              <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">👤 اللاعب:</span>
-                  <span className="text-white font-bold">{player.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">🆔 ID:</span>
-                  <span className="text-white font-mono">{player.id}</span>
-                </div>
-                {player.username && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">📩 تلغرام:</span>
-                    <span className="text-sky-400 font-mono" dir="ltr">
-                      @{player.username}
-                    </span>
+            {/* بطاقة الجائزة الظاهرة (للتصوير) */}
+            {result.type === "win" && (
+              <div className="space-y-3">
+                <div
+                  ref={receiptRef}
+                  className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border-2 border-yellow-500/50 p-6"
+                  dir="rtl"
+                >
+                  <div className="text-center mb-4 pb-4 border-b border-slate-800">
+                    <div className="text-4xl mb-2">🎉</div>
+                    <div className="text-sky-400 font-bold text-xl">
+                      Al Fares Robert
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      صورة جائزة - عجلة الحظ
+                    </div>
                   </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-slate-400">🎟️ الكود:</span>
-                  <span className="text-emerald-400 font-mono" dir="ltr">
-                    {wonCode || "—"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">📅 التاريخ:</span>
-                  <span className="text-white text-xs">
-                    {new Date().toLocaleString("ar-EG", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      timeZone: "Asia/Damascus",
-                    })}
-                  </span>
-                </div>
-              </div>
 
-              <div className="text-center text-xs text-slate-600">
-                📢 @AlFaresRobert1
+                  <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 text-center">
+                    <div className="text-xs text-slate-500 mb-1">الجائزة</div>
+                    <div className="text-3xl font-bold text-yellow-400">
+                      {result.label}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900 rounded-xl p-4 mb-4 border border-slate-800 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">👤 اللاعب:</span>
+                      <span className="text-white font-bold">{player.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">🆔 ID:</span>
+                      <span className="text-white font-mono">{player.id}</span>
+                    </div>
+                    {player.username && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">📩 تلغرام:</span>
+                        <span className="text-sky-400 font-mono" dir="ltr">
+                          @{player.username}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">🎟️ الكود:</span>
+                      <span className="text-emerald-400 font-mono" dir="ltr">
+                        {wonCode || "—"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">📅 التاريخ:</span>
+                      <span className="text-white text-xs">
+                        {new Date().toLocaleString("ar-EG", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          timeZone: "Asia/Damascus",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-center text-xs text-slate-600">
+                    📢 @AlFaresRobert1
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSaveImage}
+                  disabled={savingImage || !!savedPrize}
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-900 font-bold transition"
+                >
+                  {savingImage
+                    ? "⏳ جاري الحفظ..."
+                    : savedPrize
+                    ? "✅ تم حفظ الصورة"
+                    : "📸 احفظ صورة الجائزة"}
+                </button>
               </div>
-            </div>
+            )}
           </div>
         )}
 
