@@ -72,6 +72,7 @@ export default function Home() {
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: "Asia/Damascus",
       });
     } catch {
       return dateStr;
@@ -81,40 +82,41 @@ export default function Home() {
   return (
     <main className="min-h-screen">
       {/* Hero */}
-      <section className="relative overflow-hidden min-h-[600px] flex items-center justify-center">
+      <section className="relative overflow-hidden min-h-[500px] md:min-h-[600px] flex items-center justify-center px-4 py-16">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950"></div>
         <div className="absolute inset-0 bg-gradient-to-b from-sky-500/10 via-transparent to-transparent"></div>
 
-        <div className="relative w-full max-w-6xl mx-auto px-4 py-20 text-center">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 text-sm mb-6">
+        <div className="relative w-full max-w-4xl mx-auto text-center">
+          <div className="inline-block px-4 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 text-xs md:text-sm mb-6">
             🎯 Al Fares Robert
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 leading-tight px-2">
             مرحباً بك في{" "}
+            <br className="md:hidden" />
             <span className="text-sky-400">Al Fares Robert</span>
           </h1>
 
-          <p className="text-slate-300 text-lg md:text-xl max-w-2xl mx-auto mb-10">
+          <p className="text-slate-300 text-sm md:text-lg lg:text-xl max-w-2xl mx-auto mb-8 md:mb-10 px-4">
             منصة البكجات والتوقعات الرياضية وعجلة الحظ
           </p>
 
-          <div className="flex flex-wrap gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center px-4">
             <Link
               href="/pages"
-              className="px-8 py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition shadow-lg shadow-sky-500/25"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition shadow-lg shadow-sky-500/25 text-base"
             >
               تصفح البكجات
             </Link>
             <Link
               href="/predict"
-              className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 text-white font-bold transition shadow-lg shadow-sky-500/25"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 text-white font-bold transition shadow-lg shadow-sky-500/25 text-base"
             >
               🎯 توقع واربح
             </Link>
             <Link
               href="/spin"
-              className="px-8 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition border border-slate-700"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition border border-slate-700 text-base"
             >
               🎡 عجلة الحظ
             </Link>
@@ -129,21 +131,21 @@ export default function Home() {
       ) : (
         <>
           {/* Featured Pages */}
-          <section className="max-w-6xl mx-auto px-4 py-12">
-            <div className="flex items-center justify-between mb-8">
+          <section className="max-w-6xl mx-auto px-4 py-10 md:py-12">
+            <div className="flex items-center justify-between mb-6 md:mb-8">
               <div>
-                <h2 className="text-2xl md:text-3xl font-bold">
+                <h2 className="text-xl md:text-3xl font-bold">
                   🏆 بكجات <span className="text-sky-400">اليوم</span>
                 </h2>
-                <p className="text-slate-400 text-sm mt-1">
+                <p className="text-slate-400 text-xs md:text-sm mt-1">
                   أحدث البكجات الرياضية
                 </p>
               </div>
               <Link
                 href="/pages"
-                className="text-sky-400 hover:text-sky-300 text-sm font-semibold"
+                className="text-sky-400 hover:text-sky-300 text-xs md:text-sm font-semibold whitespace-nowrap"
               >
-                عرض الكل →
+                عرض الكل ←
               </Link>
             </div>
 
@@ -157,11 +159,11 @@ export default function Home() {
                   <Link
                     key={page.id}
                     href="/pages"
-                    className="bg-slate-900 rounded-2xl border border-slate-800 p-5 hover:border-sky-500/50 transition"
+                    className="bg-slate-900 rounded-2xl border border-slate-800 p-5 hover:border-sky-500/50 active:border-sky-500/50 transition"
                   >
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold mb-1 truncate">
+                        <h3 className="font-bold mb-1 truncate text-base">
                           {page.name}
                         </h3>
                         <p className="text-slate-400 text-sm line-clamp-2">
@@ -183,21 +185,21 @@ export default function Home() {
           </section>
 
           {/* Open Matches */}
-          <section className="max-w-6xl mx-auto px-4 py-12">
-            <div className="flex items-center justify-between mb-8">
+          <section className="max-w-6xl mx-auto px-4 py-10 md:py-12">
+            <div className="flex items-center justify-between mb-6 md:mb-8">
               <div>
-                <h2 className="text-2xl md:text-3xl font-bold">
+                <h2 className="text-xl md:text-3xl font-bold">
                   🔥 مباريات <span className="text-sky-400">مفتوحة</span>
                 </h2>
-                <p className="text-slate-400 text-sm mt-1">
+                <p className="text-slate-400 text-xs md:text-sm mt-1">
                   توقع الآن قبل إغلاق التوقعات
                 </p>
               </div>
               <Link
                 href="/predict"
-                className="text-sky-400 hover:text-sky-300 text-sm font-semibold"
+                className="text-sky-400 hover:text-sky-300 text-xs md:text-sm font-semibold whitespace-nowrap"
               >
-                عرض الكل →
+                عرض الكل ←
               </Link>
             </div>
 
@@ -217,16 +219,16 @@ export default function Home() {
                     </div>
                     <div className="flex items-center justify-between gap-2 mb-4">
                       <div className="flex-1 text-center">
-                        <div className="font-bold text-sm">{match.team1}</div>
+                        <div className="font-bold text-sm truncate">{match.team1}</div>
                       </div>
-                      <div className="text-slate-500 text-xs">×</div>
+                      <div className="text-slate-500 text-xs shrink-0">×</div>
                       <div className="flex-1 text-center">
-                        <div className="font-bold text-sm">{match.team2}</div>
+                        <div className="font-bold text-sm truncate">{match.team2}</div>
                       </div>
                     </div>
                     <Link
                       href="/predict"
-                      className="block w-full px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-900 text-sm font-bold text-center transition"
+                      className="block w-full px-4 py-3 rounded-lg bg-sky-500 hover:bg-sky-400 active:bg-sky-400 text-slate-900 text-sm font-bold text-center transition"
                     >
                       توقّع الآن
                     </Link>
@@ -237,18 +239,18 @@ export default function Home() {
           </section>
 
           {/* Wheel Preview */}
-          <section className="max-w-6xl mx-auto px-4 py-12">
-            <div className="bg-gradient-to-br from-sky-500/10 to-blue-500/10 rounded-3xl border border-sky-500/30 p-8 md:p-12 text-center">
-              <div className="text-6xl mb-4">🎡</div>
-              <h2 className="text-2xl md:text-4xl font-bold mb-3">
+          <section className="max-w-6xl mx-auto px-4 py-10 md:py-12">
+            <div className="bg-gradient-to-br from-sky-500/10 to-blue-500/10 rounded-3xl border border-sky-500/30 p-6 md:p-12 text-center">
+              <div className="text-5xl md:text-6xl mb-4">🎡</div>
+              <h2 className="text-xl md:text-4xl font-bold mb-3">
                 عجلة <span className="text-sky-400">الحظ</span>
               </h2>
-              <p className="text-slate-300 max-w-md mx-auto mb-6">
+              <p className="text-slate-300 max-w-md mx-auto mb-6 text-sm md:text-base">
                 جرّب حظك واربح جوائز نقدية قيّمة!
               </p>
               <Link
                 href="/spin"
-                className="inline-block px-8 py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition shadow-lg shadow-sky-500/25"
+                className="inline-block w-full sm:w-auto px-8 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition shadow-lg shadow-sky-500/25"
               >
                 🎡 جرّب العجلة
               </Link>
@@ -257,21 +259,21 @@ export default function Home() {
 
           {/* Leaderboard */}
           {players.length > 0 && (
-            <section className="max-w-6xl mx-auto px-4 py-12">
-              <div className="flex items-center justify-between mb-8">
+            <section className="max-w-6xl mx-auto px-4 py-10 md:py-12">
+              <div className="flex items-center justify-between mb-6 md:mb-8">
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-bold">
+                  <h2 className="text-xl md:text-3xl font-bold">
                     👑 <span className="text-sky-400">المتصدرين</span>
                   </h2>
-                  <p className="text-slate-400 text-sm mt-1">
+                  <p className="text-slate-400 text-xs md:text-sm mt-1">
                     أفضل 5 لاعبين
                   </p>
                 </div>
                 <Link
                   href="/winners"
-                  className="text-sky-400 hover:text-sky-300 text-sm font-semibold"
+                  className="text-sky-400 hover:text-sky-300 text-xs md:text-sm font-semibold whitespace-nowrap"
                 >
-                  عرض الكل →
+                  عرض الكل ←
                 </Link>
               </div>
 
@@ -299,7 +301,7 @@ export default function Home() {
                     <div className="flex-1 min-w-0">
                       <div className="font-bold truncate">{player.name}</div>
                     </div>
-                    <div className="text-sky-400 font-bold shrink-0">
+                    <div className="text-sky-400 font-bold shrink-0 text-sm">
                       {player.points.toLocaleString("ar-EG")} نقطة
                     </div>
                   </div>
@@ -311,7 +313,7 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-slate-800 mt-20">
+      <footer className="border-t border-slate-800 mt-10 md:mt-20">
         <div className="max-w-6xl mx-auto px-4 py-8 text-center text-slate-500 text-sm">
           © 2025 Al Fares Robert — جميع الحقوق محفوظة
         </div>

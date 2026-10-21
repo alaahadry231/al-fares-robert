@@ -44,25 +44,25 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-slate-900/80 backdrop-blur border-b border-slate-800 sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 py-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+    <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
+      <div className="max-w-6xl mx-auto px-4 py-3 md:py-4">
+        <div className="flex items-center justify-between gap-2">
           {/* Logo + Name */}
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            <Link href="/" className="flex items-center gap-2 md:gap-3">
               <img
                 src="/logo.png"
                 alt="Al Fares Robert"
-                className="w-12 h-12 rounded-xl object-contain"
+                className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-contain"
               />
-              <span className="text-lg font-bold">Al Fares Robert</span>
+              <span className="text-base md:text-lg font-bold">Al Fares Robert</span>
             </Link>
 
             <a
               href={TELEGRAM_CHANNEL}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:inline-flex group items-center gap-2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-sky-500/20 to-blue-500/20 hover:from-sky-500/30 hover:to-blue-500/30 border border-sky-500/40 hover:border-sky-400 text-sky-400 hover:text-sky-300 text-[10px] font-semibold transition-all duration-300"
+              className="hidden md:inline-flex group items-center gap-2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-sky-500/20 to-blue-500/20 hover:from-sky-500/30 hover:to-blue-500/30 border border-sky-500/40 hover:border-sky-400 text-sky-400 hover:text-sky-300 text-[10px] font-semibold transition-all duration-300"
             >
               <span className="relative flex items-center justify-center">
                 <span className="absolute w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping opacity-75"></span>
@@ -101,31 +101,21 @@ export default function Header() {
             )}
           </nav>
 
-          {/* Auth / Mobile Menu */}
+          {/* Auth / Mobile Menu Button */}
           <div className="flex items-center gap-2">
             {player ? (
-              <div className="hidden md:flex items-center gap-2">
-                {/* زر حسابي */}
-                <Link
-                  href="/profile"
-                  className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-2 transition"
-                  title="حسابي"
-                >
-                  <span className="text-xs">👤</span>
-                  <span className="text-sm text-white font-semibold">
-                    {player.nickname}
-                  </span>
-                  <span className="text-xs text-sky-400 font-bold">
-                    {player.total_points.toLocaleString("ar-EG")}
-                  </span>
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm border border-red-500/30 transition"
-                >
-                  خروج
-                </button>
-              </div>
+              <Link
+                href="/profile"
+                className="hidden md:flex px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 items-center gap-2 transition"
+              >
+                <span className="text-xs">👤</span>
+                <span className="text-sm text-white font-semibold">
+                  {player.nickname}
+                </span>
+                <span className="text-xs text-sky-400 font-bold">
+                  {player.total_points.toLocaleString("ar-EG")}
+                </span>
+              </Link>
             ) : (
               <Link
                 href="/login"
@@ -137,15 +127,15 @@ export default function Header() {
 
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="md:hidden w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-white transition"
+              className="md:hidden w-12 h-12 rounded-xl bg-slate-800 active:bg-slate-700 flex items-center justify-center text-white transition touch-manipulation"
               aria-label="القائمة"
             >
               {isOpen ? (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               ) : (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               )}
@@ -155,24 +145,26 @@ export default function Header() {
 
         {/* Mobile Menu */}
         {isOpen && (
-          <nav className="md:hidden mt-4 pt-4 border-t border-slate-800 flex flex-col gap-2">
+          <div className="md:hidden mt-3 pt-3 border-t border-slate-800 flex flex-col gap-1 animate-in fade-in slide-in-from-top-4 duration-200">
             {publicNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
-                className="px-4 py-3 rounded-xl text-base font-semibold transition bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+                className="px-4 py-3.5 rounded-xl text-base font-semibold transition bg-slate-800/60 active:bg-slate-800 text-slate-200"
               >
                 {item.label}
               </Link>
             ))}
+
+            <div className="h-px bg-slate-800 my-2"></div>
 
             {player && (
               <>
                 <Link
                   href="/profile"
                   onClick={() => setIsOpen(false)}
-                  className="px-4 py-3 rounded-xl text-base font-bold transition bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 flex items-center justify-between"
+                  className="px-4 py-3.5 rounded-xl text-base font-bold transition bg-slate-800 active:bg-slate-700 text-white border border-slate-700 flex items-center justify-between"
                 >
                   <span>👤 حسابي</span>
                   <span className="text-sky-400 text-sm">
@@ -183,14 +175,14 @@ export default function Header() {
                 <Link
                   href="/my-predictions"
                   onClick={() => setIsOpen(false)}
-                  className="px-4 py-3 rounded-xl text-base font-bold transition bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30"
+                  className="px-4 py-3.5 rounded-xl text-base font-bold transition bg-sky-500/10 active:bg-sky-500/20 text-sky-400 border border-sky-500/30"
                 >
                   📋 توقعاتي
                 </Link>
                 <Link
                   href="/my-prizes"
                   onClick={() => setIsOpen(false)}
-                  className="px-4 py-3 rounded-xl text-base font-bold transition bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30"
+                  className="px-4 py-3.5 rounded-xl text-base font-bold transition bg-green-500/10 active:bg-green-500/20 text-green-400 border border-green-500/30"
                 >
                   🎁 جوائزي
                 </Link>
@@ -203,7 +195,7 @@ export default function Header() {
                   setIsOpen(false);
                   handleLogout();
                 }}
-                className="px-4 py-3 rounded-xl text-base font-bold transition bg-red-500/10 text-red-400 border border-red-500/30 mt-2"
+                className="px-4 py-3.5 rounded-xl text-base font-bold transition bg-red-500/10 active:bg-red-500/20 text-red-400 border border-red-500/30 mt-2"
               >
                 🚪 تسجيل خروج
               </button>
@@ -211,12 +203,12 @@ export default function Header() {
               <Link
                 href="/login"
                 onClick={() => setIsOpen(false)}
-                className="px-4 py-3 rounded-xl text-base font-bold transition bg-sky-500 hover:bg-sky-400 text-slate-900 text-center mt-2"
+                className="px-4 py-3.5 rounded-xl text-base font-bold transition bg-sky-500 active:bg-sky-400 text-slate-900 text-center mt-2"
               >
                 تسجيل الدخول
               </Link>
             )}
-          </nav>
+          </div>
         )}
       </div>
     </header>
