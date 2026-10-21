@@ -6,25 +6,20 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // نتحقق إنه في رسالة
     if (!body.message) {
       return NextResponse.json({ ok: true });
     }
 
     const chatId = body.message.chat.id.toString();
     const text = body.message.text || "";
-    const username = body.message.from?.username || "";
 
-    // إذا /start
     if (text.startsWith("/start")) {
-      // نستخرج player_id من الرابط (start=123)
       const parts = text.split(" ");
       const payload = parts[1];
 
       if (payload && payload.startsWith("player_")) {
         const playerId = payload.replace("player_", "");
 
-        // نربط chat_id باللاعب
         const result = await sql`
           update players
           set telegram_chat_id = ${chatId}
@@ -33,17 +28,21 @@ export async function POST(req: NextRequest) {
         `;
 
         if (result.length > 0) {
+          // ✅ إشعار للاعب (مو للمدير)
           await sendTelegramNotification(
-            `✅ تم ربط حسابك بنجاح!\n\n👤 ${result[0].nickname}\n\nالآن رح تستلم إشعارات الجوائز والتوقعات هنا.`
+            `✅ تم ربط حسابك بنجاح!\n\n👤 ${result[0].nickname}\n\nالآن رح تستلم إشعارات الجوائز والتوقعات هنا.`,
+            chatId
           );
         } else {
           await sendTelegramNotification(
-            `⚠️ لم نجد حسابك. تأكد من تسجيل الدخول على الموقع أولاً.`
+            `⚠️ لم نجد حسابك. تأكد من تسجيل الدخول على الموقع أولاً.`,
+            chatId
           );
         }
       } else {
         await sendTelegramNotification(
-          `👋 أهلاً بك في بوت Al Fares Robert!\n\n🔗 لربط حسابك، افتح صفحة "حسابي" على الموقع واضغط على زر "ربط الحساب".`
+          `👋 أهلاً بك في بوت Al Fares Robert!\n\n🔗 لربط حسابك، افتح صفحة "جوائزي" على الموقع واضغط على زر "ربط الحساب".`,
+          chatId
         );
       }
     }
