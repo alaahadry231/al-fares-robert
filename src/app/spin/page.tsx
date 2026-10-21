@@ -252,6 +252,15 @@ export default function SpinPage() {
     }
   };
 
+  // ✅ تمرير تلقائي للبطاقة بعد الفوز
+  useEffect(() => {
+    if (result?.type === "win" && receiptRef.current) {
+      setTimeout(() => {
+        receiptRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    }
+  }, [result]);
+
   useEffect(() => {
     return () => {
       if (animationRef.current !== null) {
