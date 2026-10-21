@@ -104,7 +104,12 @@ export default function Header() {
           <div className="flex items-center gap-2">
             {player ? (
               <div className="hidden md:flex items-center gap-2">
-                <div className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 flex items-center gap-2">
+                {/* زر حسابي */}
+                <Link
+                  href="/profile"
+                  className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-2 transition"
+                  title="حسابي"
+                >
                   <span className="text-xs">👤</span>
                   <span className="text-sm text-white font-semibold">
                     {player.nickname}
@@ -112,7 +117,7 @@ export default function Header() {
                   <span className="text-xs text-sky-400 font-bold">
                     {player.total_points.toLocaleString("ar-EG")}
                   </span>
-                </div>
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="px-3 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm border border-red-500/30 transition"
@@ -162,44 +167,45 @@ export default function Header() {
             ))}
 
             {player && (
-              <Link
-                href="/my-predictions"
-                onClick={() => setIsOpen(false)}
-                className="px-4 py-3 rounded-xl text-base font-bold transition bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30"
-              >
-                📋 توقعاتي
-              </Link>
-            )}
+              <>
+                <Link
+                  href="/profile"
+                  onClick={() => setIsOpen(false)}
+                  className="px-4 py-3 rounded-xl text-base font-bold transition bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 flex items-center justify-between"
+                >
+                  <span>👤 حسابي</span>
+                  <span className="text-sky-400 text-sm">
+                    ⭐ {player.total_points.toLocaleString("ar-EG")}
+                  </span>
+                </Link>
 
-            {player && (
-              <Link
-                href="/my-prizes"
-                onClick={() => setIsOpen(false)}
-                className="px-4 py-3 rounded-xl text-base font-bold transition bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30"
-              >
-                🎁 جوائزي
-              </Link>
+                <Link
+                  href="/my-predictions"
+                  onClick={() => setIsOpen(false)}
+                  className="px-4 py-3 rounded-xl text-base font-bold transition bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30"
+                >
+                  📋 توقعاتي
+                </Link>
+                <Link
+                  href="/my-prizes"
+                  onClick={() => setIsOpen(false)}
+                  className="px-4 py-3 rounded-xl text-base font-bold transition bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30"
+                >
+                  🎁 جوائزي
+                </Link>
+              </>
             )}
 
             {player ? (
-              <>
-                <div className="px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 mt-2">
-                  <div className="text-xs text-slate-400 mb-1">مسجل دخول بـ:</div>
-                  <div className="font-bold text-white">{player.nickname}</div>
-                  <div className="text-xs text-sky-400 mt-1">
-                    ⭐ {player.total_points.toLocaleString("ar-EG")} نقطة
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setIsOpen(false);
-                    handleLogout();
-                  }}
-                  className="px-4 py-3 rounded-xl text-base font-bold transition bg-red-500/10 text-red-400 border border-red-500/30"
-                >
-                  خروج
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  handleLogout();
+                }}
+                className="px-4 py-3 rounded-xl text-base font-bold transition bg-red-500/10 text-red-400 border border-red-500/30 mt-2"
+              >
+                🚪 تسجيل خروج
+              </button>
             ) : (
               <Link
                 href="/login"
