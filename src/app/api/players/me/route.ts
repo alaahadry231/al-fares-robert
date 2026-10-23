@@ -10,7 +10,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "player_id مطلوب" }, { status: 400 });
     }
 
-    // بيانات اللاعب
     const playerData = await sql`
       select
         id,
@@ -32,12 +31,10 @@ export async function GET(req: NextRequest) {
 
     const player = playerData[0];
 
-    // عدد التوقعات
     const predictionsCount = await sql`
       select count(*)::int as count from predictions where player_id = ${playerId}
     `;
 
-    // عدد الجوائز
     const prizesCount = await sql`
       select count(*)::int as count from prizes where player_id = ${playerId}
     `;
