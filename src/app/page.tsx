@@ -83,7 +83,7 @@ export default function Home() {
     <main className="min-h-screen">
       {/* Hero */}
       <section className="relative overflow-hidden min-h-[500px] md:min-h-[600px] flex items-center justify-center px-4 py-16">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950"></div>
+        {/* تم حذف المربع الأسود من هنا عشان تظهر الخلفية */}
         <div className="absolute inset-0 bg-gradient-to-b from-sky-500/10 via-transparent to-transparent"></div>
 
         <div className="relative w-full max-w-4xl mx-auto text-center">
@@ -91,13 +91,13 @@ export default function Home() {
             🎯 Al Fares Robert
           </div>
 
-          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 leading-tight px-2">
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 leading-tight px-2 drop-shadow-lg">
             مرحباً بك في{" "}
             <br className="md:hidden" />
             <span className="text-sky-400">Al Fares Robert</span>
           </h1>
 
-          <p className="text-slate-300 text-sm md:text-lg lg:text-xl max-w-2xl mx-auto mb-8 md:mb-10 px-4">
+          <p className="text-slate-200 text-sm md:text-lg lg:text-xl max-w-2xl mx-auto mb-8 md:mb-10 px-4 drop-shadow-md">
             منصة البكجات والتوقعات الرياضية وعجلة الحظ
           </p>
 
@@ -116,7 +116,7 @@ export default function Home() {
             </Link>
             <Link
               href="/spin"
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition border border-slate-700 text-base"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white font-bold transition border border-slate-700 text-base backdrop-blur-sm"
             >
               🎡 عجلة الحظ
             </Link>
@@ -134,10 +134,10 @@ export default function Home() {
           <section className="max-w-6xl mx-auto px-4 py-10 md:py-12">
             <div className="flex items-center justify-between mb-6 md:mb-8">
               <div>
-                <h2 className="text-xl md:text-3xl font-bold">
+                <h2 className="text-xl md:text-3xl font-bold drop-shadow-md">
                   🏆 بكجات <span className="text-sky-400">اليوم</span>
                 </h2>
-                <p className="text-slate-400 text-xs md:text-sm mt-1">
+                <p className="text-slate-300 text-xs md:text-sm mt-1">
                   أحدث البكجات الرياضية
                 </p>
               </div>
@@ -150,7 +150,7 @@ export default function Home() {
             </div>
 
             {pages.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
+              <div className="text-center py-12 text-slate-400">
                 لا توجد بكجات بعد
               </div>
             ) : (
@@ -159,7 +159,7 @@ export default function Home() {
                   <Link
                     key={page.id}
                     href="/pages"
-                    className="bg-slate-900 rounded-2xl border border-slate-800 p-5 hover:border-sky-500/50 active:border-sky-500/50 transition"
+                    className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-800 p-5 hover:border-sky-500/50 active:border-sky-500/50 transition"
                   >
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
@@ -188,10 +188,10 @@ export default function Home() {
           <section className="max-w-6xl mx-auto px-4 py-10 md:py-12">
             <div className="flex items-center justify-between mb-6 md:mb-8">
               <div>
-                <h2 className="text-xl md:text-3xl font-bold">
+                <h2 className="text-xl md:text-3xl font-bold drop-shadow-md">
                   🔥 مباريات <span className="text-sky-400">مفتوحة</span>
                 </h2>
-                <p className="text-slate-400 text-xs md:text-sm mt-1">
+                <p className="text-slate-300 text-xs md:text-sm mt-1">
                   توقع الآن قبل إغلاق التوقعات
                 </p>
               </div>
@@ -204,7 +204,7 @@ export default function Home() {
             </div>
 
             {matches.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
+              <div className="text-center py-12 text-slate-400">
                 لا توجد مباريات مفتوحة حالياً
               </div>
             ) : (
@@ -212,9 +212,9 @@ export default function Home() {
                 {matches.map((match) => (
                   <div
                     key={match.id}
-                    className="bg-slate-900 rounded-2xl border border-slate-800 p-5"
+                    className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-800 p-5"
                   >
-                    <div className="text-xs text-slate-500 mb-3 text-center">
+                    <div className="text-xs text-slate-400 mb-3 text-center">
                       {formatDate(match.match_date)}
                     </div>
                     <div className="flex items-center justify-between gap-2 mb-4">
@@ -240,12 +240,12 @@ export default function Home() {
 
           {/* Wheel Preview */}
           <section className="max-w-6xl mx-auto px-4 py-10 md:py-12">
-            <div className="bg-gradient-to-br from-sky-500/10 to-blue-500/10 rounded-3xl border border-sky-500/30 p-6 md:p-12 text-center">
+            <div className="bg-gradient-to-br from-sky-500/10 to-blue-500/10 backdrop-blur-sm rounded-3xl border border-sky-500/30 p-6 md:p-12 text-center">
               <div className="text-5xl md:text-6xl mb-4">🎡</div>
-              <h2 className="text-xl md:text-4xl font-bold mb-3">
+              <h2 className="text-xl md:text-4xl font-bold mb-3 drop-shadow-md">
                 عجلة <span className="text-sky-400">الحظ</span>
               </h2>
-              <p className="text-slate-300 max-w-md mx-auto mb-6 text-sm md:text-base">
+              <p className="text-slate-200 max-w-md mx-auto mb-6 text-sm md:text-base">
                 جرّب حظك واربح جوائز نقدية قيّمة!
               </p>
               <Link
@@ -262,10 +262,10 @@ export default function Home() {
             <section className="max-w-6xl mx-auto px-4 py-10 md:py-12">
               <div className="flex items-center justify-between mb-6 md:mb-8">
                 <div>
-                  <h2 className="text-xl md:text-3xl font-bold">
+                  <h2 className="text-xl md:text-3xl font-bold drop-shadow-md">
                     👑 <span className="text-sky-400">المتصدرين</span>
                   </h2>
-                  <p className="text-slate-400 text-xs md:text-sm mt-1">
+                  <p className="text-slate-300 text-xs md:text-sm mt-1">
                     أفضل 5 لاعبين
                   </p>
                 </div>
@@ -277,7 +277,7 @@ export default function Home() {
                 </Link>
               </div>
 
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+              <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-800 overflow-hidden">
                 {players.map((player, i) => (
                   <div
                     key={player.id}
