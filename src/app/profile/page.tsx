@@ -25,11 +25,13 @@ export default function ProfilePage() {
   const [player, setPlayer] = useState<Player | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notLoggedIn, setNotLoggedIn] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("player_data");
     if (!saved) {
-      router.push("/login");
+      setNotLoggedIn(true);
+      setLoading(false);
       return;
     }
 
@@ -44,7 +46,6 @@ export default function ProfilePage() {
           if (json.player) {
             setPlayer(json.player);
             setStats(json.stats);
-            // تحديث الـ localStorage بالبيانات الجديدة (بس عشان النقاط تتحدث)
             localStorage.setItem(
               "player_data",
               JSON.stringify({
@@ -65,9 +66,10 @@ export default function ProfilePage() {
 
       fetchData();
     } catch {
-      router.push("/login");
+      setNotLoggedIn(true);
+      setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   const handleLogout = () => {
     if (!confirm("هل أنت متأكد من تسجيل الخروج؟")) return;
@@ -98,7 +100,26 @@ export default function ProfilePage() {
     );
   }
 
-  if (!player) return null;
+  // إذا اللاعب مش مسجل دخول
+  if (notLoggedIn || !player) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">🔒</div>
+          <h1 className="text-2xl font-bold mb-2">يجب تسجيل الدخول</h1>
+          <p className="text-slate-400 mb-6">
+            سجّل دخولك بتلغرام لتتمكن من رؤية صفحة حسابك
+          </p>
+          <Link
+            href="/login"
+            className="inline-block px-8 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold transition"
+          >
+            تسجيل الدخول
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen">
