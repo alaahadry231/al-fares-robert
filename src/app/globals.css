@@ -35,3 +35,18 @@ h1, h2, h3, h4, h5, h6 {
 html {
   scroll-behavior: smooth;
 }
+/* خلفية الموقع العامة */
+body {
+  /* الصورة مع طبقة سوداء شفافة فوقها عشان الكلام يبان */
+  background-image: linear-gradient(rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.95)), url('/all.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* الهيدر نخليه شفاف شوي عشان يندمج مع الخلفية */
+header {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(8px);
+}

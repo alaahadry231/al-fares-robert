@@ -31,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" className={`${cairo.variable} ${tajawal.variable}`}>
-      <body className="min-h-full flex flex-col antialiased bg-slate-950 text-white">
+      <body className="min-h-full flex flex-col antialiased text-white">
         <Header />
         <MaintenanceChecker />
         {children}
