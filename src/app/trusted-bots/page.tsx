@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { trackView, trackClick } from "@/lib/tracking";
 
 type TrustedBot = {
   id: number;
@@ -17,6 +18,8 @@ export default function TrustedBotsPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    trackView("/trusted-bots");
+
     const fetchBots = async () => {
       try {
         const res = await fetch("/api/trusted-bots");
@@ -33,6 +36,10 @@ export default function TrustedBotsPage() {
   }, []);
 
   const filtered = bots.filter((b) => b.name.includes(search));
+
+  const handleClick = (bot: TrustedBot) => {
+    trackClick("bot", bot.id, bot.name);
+  };
 
   return (
     <main className="min-h-screen">
@@ -89,6 +96,7 @@ export default function TrustedBotsPage() {
                     href={bot.bot_url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => handleClick(bot)}
                     className="block w-full px-4 py-3 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-900 text-sm font-bold text-center transition shadow-lg shadow-sky-500/20"
                   >
                     الدخول إلى البوت 🚀

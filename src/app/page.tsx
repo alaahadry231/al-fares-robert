@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { trackView } from "@/lib/tracking";
 
 type SportsPage = {
   id: number;
@@ -39,6 +40,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    trackView("/");
+
     const fetchData = async () => {
       try {
         const [pagesRes, matchesRes, playersRes] = await Promise.all([

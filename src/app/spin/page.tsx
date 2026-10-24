@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toPng } from "html-to-image";
+import { trackView } from "@/lib/tracking";
 
 type Prize = {
   type: "win" | "retry" | "lose";
@@ -53,6 +54,8 @@ export default function SpinPage() {
   const segmentAngle = (Math.PI * 2) / prizes.length;
 
   useEffect(() => {
+    trackView("/spin");
+
     const saved = localStorage.getItem("player_data");
     if (saved) {
       try {

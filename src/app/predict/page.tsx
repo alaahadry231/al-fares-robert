@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toPng } from "html-to-image";
+import { trackView } from "@/lib/tracking";
 
 type Match = {
   id: number;
@@ -53,6 +54,8 @@ export default function PredictPage() {
   const [savingImage, setSavingImage] = useState(false);
 
   useEffect(() => {
+    trackView("/predict");
+
     const saved = localStorage.getItem("player_data");
     if (saved) {
       try {
