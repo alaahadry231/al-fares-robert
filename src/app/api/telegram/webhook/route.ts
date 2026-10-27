@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 
-const ADMIN_ID = "7597432185"; // 👈 الأيدي تبعك
+const ADMIN_ID = "7597432185";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // 1. التعامل مع الأزرار التفاعلية (Callback Queries)
     if (body.callback_query) {
       const callbackQuery = body.callback_query;
       const chatId = callbackQuery.message.chat.id.toString();
       const messageId = callbackQuery.message.message_id;
       const data = callbackQuery.data;
 
-      // التحقق إنه المستخدم هو المدير
       if (chatId !== ADMIN_ID) {
         await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
           method: "POST",
@@ -28,14 +26,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
-      // الرد على الزر عشان ما يظل يلف (Loading)
       await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ callback_query_id: callbackQuery.id }),
       });
 
-      // التعامل مع الأزرار
+      // توجيه الأزرار
       if (data === "main_menu") {
         await sendMainMenu(chatId, messageId);
       } else if (data === "codes_menu") {
@@ -46,12 +43,19 @@ export async function POST(req: NextRequest) {
         await sendPrizesMenu(chatId, messageId);
       } else if (data === "close_menu") {
         await editMessage(chatId, messageId, "✅ تم إغلاق لوحة التحكم.");
+      } 
+      // 👇 الأزرار الجديدة للأكواد
+      else if (data === "gen_10") {
+        await generateCodes(chatId, messageId, 10);
+      } else if (data === "gen_50") {
+        await generateCodes(chatId, messageId, 50);
+      } else if (data === "view_codes") {
+        await viewAvailableCodes(chatId, messageId);
       }
 
       return NextResponse.json({ ok: true });
     }
 
-    // 2. التعامل مع الأوامر النصية العادية (زي /start أو /admin)
     if (body.message) {
       const message = body.message;
       const chatId = message.chat.id.toString();
@@ -59,11 +63,6 @@ export async function POST(req: NextRequest) {
 
       if (chatId === ADMIN_ID && (text === "/admin" || text === "/start")) {
         await sendMainMenu(chatId);
-      } else if (chatId === ADMIN_ID && text.startsWith("/")) {
-         // تجاهل الأوامر التانية للمدير
-      } else {
-         // التعامل مع رسائل اللاعبين العاديين
-         // (هون الكود القديم تبع ربط الحساب أو الإشعارات)
       }
     }
 
@@ -85,12 +84,8 @@ async function sendMainMenu(chatId: string, messageId?: number) {
       [{ text: "❌ إغلاق اللوحة", callback_data: "close_menu" }],
     ],
   };
-
-  if (messageId) {
-    await editMessage(chatId, messageId, text, keyboard);
-  } else {
-    await sendMessage(chatId, text, keyboard);
-  }
+  if (messageId) await editMessage(chatId, messageId, text, keyboard);
+  else await sendMessage(chatId, text, keyboard);
 }
 
 // دالة إرسال قائمة الأكواد
@@ -107,9 +102,76 @@ async function sendCodesMenu(chatId: string, messageId: number) {
   await editMessage(chatId, messageId, text, keyboard);
 }
 
+// دالة توليد الأكواد
+async function generateCodes(chatId: string, messageId: number, count: number) {
+  try {
+    const generatedCodes: string[] = [];
+    
+    // توليد الأكواد وإدخالها بقاعدة البيانات
+    for (let i = 0; i < count; i++) {
+      const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+      await sql`
+        insert into spin_codes (code, is_used) 
+        values (${randomCode}, false)
+      `;
+      generatedCodes.push(randomCode);
+    }
+
+    // تجهيز النص للرد
+    let responseText = `✅ تم توليد ${count} كود بنجاح!\n\n`;
+    responseText += generatedCodes.join("\n");
+    
+    // إرسال رسالة جديدة بالأكواد (عشان ما تتعدل الرسالة القديمة وتصير طويلة)
+    await sendMessage(chatId, `\`\`\`\n${responseText}\n\`\`\``, {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
+    }, "MarkdownV2");
+
+    // تحديث رسالة القائمة القديمة
+    await editMessage(chatId, messageId, `✅ تم توليد ${count} كود. (شوف الرسالة اللي تحت)`, {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
+    });
+
+  } catch (error) {
+    console.error("Generate codes error:", error);
+    await editMessage(chatId, messageId, "❌ حدث خطأ أثناء توليد الأكواد.", {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
+    });
+  }
+}
+
+// دالة عرض الأكواد المتاحة
+async function viewAvailableCodes(chatId: string, messageId: number) {
+  try {
+    const availableCodes = await sql`
+      select code from spin_codes where is_used = false limit 20
+    `;
+
+    let responseText = `📋 *الأكواد المتاحة (أول 20)*\n\n`;
+    if (availableCodes.length === 0) {
+      responseText += "لا توجد أكواد متاحة حالياً.";
+    } else {
+      availableCodes.forEach((c: any) => {
+        responseText += `🔹 \`${c.code}\`\n`;
+      });
+    }
+
+    await sendMessage(chatId, responseText, {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
+    }, "Markdown");
+
+    await editMessage(chatId, messageId, "✅ تم عرض الأكواد.", {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
+    });
+  } catch (error) {
+    console.error("View codes error:", error);
+    await editMessage(chatId, messageId, "❌ حدث خطأ.", {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
+    });
+  }
+}
+
 // دالة إرسال قائمة الإحصائيات
 async function sendStatsMenu(chatId: string, messageId: number) {
-  // جلب الإحصائيات من الداتابيس
   const players = await sql`select count(*)::int as count from players`;
   const codes = await sql`select count(*)::int as count from spin_codes where is_used = false`;
   const prizes = await sql`select count(*)::int as count from prizes where status = 'pending'`;
@@ -152,7 +214,7 @@ async function sendPrizesMenu(chatId: string, messageId: number) {
   await editMessage(chatId, messageId, text, keyboard, "Markdown");
 }
 
-// دالة مساعدة لإرسال رسالة جديدة
+// دوال مساعدة
 async function sendMessage(chatId: string, text: string, keyboard?: any, parseMode?: string) {
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
@@ -166,7 +228,6 @@ async function sendMessage(chatId: string, text: string, keyboard?: any, parseMo
   });
 }
 
-// دالة مساعدة لتعديل رسالة موجودة
 async function editMessage(chatId: string, messageId: number, text: string, keyboard?: any, parseMode?: string) {
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/editMessageText`, {
     method: "POST",
