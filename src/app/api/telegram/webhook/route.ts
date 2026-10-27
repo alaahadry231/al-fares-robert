@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // 1. معالجة الأزرار (Callbacks)
     if (body.callback_query) {
       const callbackQuery = body.callback_query;
       const chatId = callbackQuery.message.chat.id.toString();
@@ -36,6 +35,11 @@ export async function POST(req: NextRequest) {
           await sendAdminMainMenu(chatId, messageId);
         } else if (data === "codes_menu") {
           await sendCodesMenu(chatId, messageId);
+        } else if (data === "gift_history_menu") { // 👈 الزر الجديد
+          await sendGiftCodesList(chatId, messageId);
+        } else if (data.startsWith("gift_details_")) { // 👈 عرض تفاصيل كود معين
+          const codeId = data.split("_")[2];
+          await sendGiftCodeDetails(chatId, messageId, parseInt(codeId));
         } else if (data === "stats_menu") {
           await sendStatsMenu(chatId, messageId);
         } else if (data === "prizes_menu") {
@@ -75,9 +79,7 @@ export async function POST(req: NextRequest) {
           await editMessage(chatId, messageId, "✍️ اكتب الرسالة التي تريد إرسالها للاعب الآن:", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
-        }
-        // 👇 زر تصفير الرصيد
-        else if (data.startsWith("zero_balance_")) {
+        } else if (data.startsWith("zero_balance_")) {
           const targetPlayerId = data.split("_")[2];
           await zeroBalance(chatId, messageId, parseInt(targetPlayerId));
         }
@@ -102,7 +104,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // 2. معالجة الرسائل النصية
     if (body.message) {
       const message = body.message;
       const chatId = message.chat.id.toString();
@@ -192,6 +193,7 @@ async function sendAdminMainMenu(chatId: string, messageId?: number) {
     inline_keyboard: [
       [{ text: "🎟️ إدارة الأكواد", callback_data: "codes_menu" }],
       [{ text: "🎁 توليد كود هدية", callback_data: "gift_menu" }],
+      [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }], // 👈 الزر الجديد
       [{ text: "📊 الإحصائيات", callback_data: "stats_menu" }],
       [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }],
       [{ text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
@@ -213,6 +215,73 @@ async function sendCodesMenu(chatId: string, messageId: number) {
       [{ text: "⬅️ رجوع", callback_data: "main_menu" }],
     ],
   });
+}
+
+// 👇 دالة عرض قائمة أكواد الهدايا
+async function sendGiftCodesList(chatId: string, messageId: number) {
+  const codes = await sql`
+    select id, code, amount, max_uses, used_count 
+    from gift_codes 
+    order by created_at desc 
+    limit 10
+  `;
+
+  let text = `📜 *سجل أكواد الهدايا (أحدث 10)*\n\n`;
+  const keyboardRows: any[] = [];
+
+  if (codes.length === 0) {
+    text += "لا توجد أكواد هدايا بعد.";
+  } else {
+    codes.forEach((c: any, i: number) => {
+      text += `🎟️ \`${c.code}\` (${c.used_count}/${c.max_uses} استخدام)\n`;
+      keyboardRows.push([{ text: `🔍 عرض تفاصيل ${c.code}`, callback_data: `gift_details_${c.id}` }]);
+    });
+  }
+
+  keyboardRows.push([{ text: "⬅️ رجوع", callback_data: "main_menu" }]);
+  await editMessage(chatId, messageId, text, { inline_keyboard: keyboardRows }, "Markdown");
+}
+
+// 👇 دالة عرض تفاصيل كود معين
+async function sendGiftCodeDetails(chatId: string, messageId: number, codeId: number) {
+  try {
+    const codeInfo = await sql`select * from gift_codes where id = ${codeId}`;
+    if (codeInfo.length === 0) return editMessage(chatId, messageId, "⚠️ الكود غير موجود.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "gift_history_menu" }]] });
+
+    const code = codeInfo[0];
+
+    // جلب من استخدم الكود
+    const history = await sql`
+      select h.used_at, p.nickname 
+      from gift_code_history h
+      join players p on h.player_id = p.id
+      where h.code_id = ${codeId}
+      order by h.used_at desc
+    `;
+
+    let text = `🎟️ *تفاصيل الكود:* \`${code.code}\`\n\n`;
+    text += `💰 *قيمة الهدية:* ${code.amount} ل.س\n`;
+    text += `🔢 *الحد الأقصى للاستخدام:* ${code.max_uses}\n`;
+    text += `✅ *تم استخدامه:* ${code.used_count} مرة\n\n`;
+    text += `👥 *المستخدمون:*\n`;
+
+    if (history.length === 0) {
+      text += "لا أحد استخدم هذا الكود بعد.";
+    } else {
+      history.forEach((h: any, i: number) => {
+        const date = new Date(h.used_at).toLocaleString("ar-EG", { timeZone: "Asia/Damascus", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        text += `${i + 1}. ${h.nickname} - ${date}\n`;
+      });
+    }
+
+    await editMessage(chatId, messageId, text, {
+      inline_keyboard: [[{ text: "⬅️ رجوع للسجل", callback_data: "gift_history_menu" }]],
+    }, "Markdown");
+
+  } catch (error) {
+    console.error("Gift details error:", error);
+    await editMessage(chatId, messageId, "❌ حدث خطأ.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "gift_history_menu" }]] });
+  }
 }
 
 async function generateCodes(chatId: string, messageId: number, count: number) {
@@ -260,33 +329,20 @@ async function viewAvailableCodes(chatId: string, messageId: number) {
 async function sendBroadcast(chatId: string, text: string) {
   try {
     await sendMessage(chatId, "⏳ جاري إرسال الرسالة للاعبين... انتظر قليلاً.");
-
     const players = await sql`select telegram_chat_id from players where telegram_chat_id is not null`;
-
-    if (players.length === 0) {
-      await sendMessage(chatId, "⚠️ لا يوجد لاعبين مربوطين بالبوت حالياً.");
-      return;
-    }
-
+    if (players.length === 0) return await sendMessage(chatId, "⚠️ لا يوجد لاعبين مربوطين بالبوت حالياً.");
     let successCount = 0;
     for (const player of players) {
       try {
         await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: player.telegram_chat_id,
-            text: text,
-            parse_mode: "HTML",
-          }),
+          body: JSON.stringify({ chat_id: player.telegram_chat_id, text: text, parse_mode: "HTML" }),
         });
         successCount++;
-      } catch (e) {
-        console.error(`Failed to send to ${player.telegram_chat_id}`);
-      }
+      } catch (e) { console.error(`Failed to send to ${player.telegram_chat_id}`); }
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-
     await sendMessage(chatId, `✅ *تم إرسال الرسالة بنجاح!*\n\nوصلت لـ ${successCount} لاعب من أصل ${players.length}.`, {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
     }, "Markdown");
@@ -309,10 +365,7 @@ async function sendStatsMenu(chatId: string, messageId: number) {
 }
 
 async function sendPrizesMenu(chatId: string, messageId: number) {
-  const prizes = await sql`
-    select p.id, p.amount, pl.nickname from prizes p join players pl on p.player_id = pl.id
-    where p.status = 'pending' order by p.created_at asc limit 5
-  `;
+  const prizes = await sql`select p.id, p.amount, pl.nickname from prizes p join players pl on p.player_id = pl.id where p.status = 'pending' order by p.created_at asc limit 5`;
   let text = `🎁 *الجوائز المعلقة (أول 5)*\n\n`;
   const keyboardRows: any[] = [];
   if (prizes.length === 0) text += "لا توجد جوائز معلقة حالياً.";
@@ -380,7 +433,6 @@ async function showPlayerBalance(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
-// 👇 تعديل: نضيف زر تصفير الرصيد للإشعار
 async function requestRedeem(chatId: string, messageId: number) {
   const player = await sql`select id, nickname, wallet_balance, telegram_username, telegram_chat_id from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
@@ -402,7 +454,6 @@ async function requestRedeem(chatId: string, messageId: number) {
     ]);
   }
 
-  // 👇 إضافة زر تصفير الرصيد
   keyboardForAdmin.push([
     { text: "✅ تم التسليم (تصفير الرصيد)", callback_data: `zero_balance_${player[0].id}` }
   ]);
@@ -422,75 +473,37 @@ async function requestRedeem(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
-// 👇 دالة تصفير الرصيد
 async function zeroBalance(chatId: string, messageId: number, playerId: number) {
   try {
     const player = await sql`select telegram_chat_id, nickname, wallet_balance from players where id = ${playerId}`;
-    if (player.length === 0) {
-      return editMessage(chatId, messageId, "⚠️ اللاعب غير موجود.", {
-        inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
-      });
-    }
-
+    if (player.length === 0) return editMessage(chatId, messageId, "⚠️ اللاعب غير موجود.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]] });
     const p = player[0];
-
-    // تصفير الرصيد
     await sql`update players set wallet_balance = 0 where id = ${playerId}`;
-
-    // إشعار للاعب
     if (p.telegram_chat_id) {
       await sendMessage(p.telegram_chat_id, `✅ *تم تسليم رصيدك بنجاح!*\n\n💰 المبلغ: ${p.wallet_balance.toLocaleString("ar-EG")} ل.س\n\nشكراً لتعاملك معنا! 🎉`);
     }
-
-    // تعديل الرسالة للمدير
     await editMessage(chatId, messageId, `✅ *تم تصفير رصيد اللاعب ${p.nickname} بنجاح!*`, {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
     }, "Markdown");
-
   } catch (error) {
-    console.error("Zero balance error:", error);
-    await editMessage(chatId, messageId, "❌ حدث خطأ.", {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
-    });
+    await editMessage(chatId, messageId, "❌ حدث خطأ.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]] });
   }
 }
 
 async function tryUseGiftCode(chatId: string, code: string, playerId: number) {
   try {
     const upperCode = code.trim().toUpperCase();
-    
     const giftCode = await sql`select * from gift_codes where code = ${upperCode}`;
-    if (giftCode.length === 0) {
-      return sendMessage(chatId, "❌ الكود غير صحيح. تأكد منه وحاول مرة تانية.", {
-        inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
-      });
-    }
-
+    if (giftCode.length === 0) return sendMessage(chatId, "❌ الكود غير صحيح. تأكد منه وحاول مرة تانية.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
     const gc = giftCode[0];
-
-    if (gc.used_count >= gc.max_uses) {
-      return sendMessage(chatId, "⚠️ هذا الكود استنفذ عدد مرات استخدامه.", {
-        inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
-      });
-    }
-
+    if (gc.used_count >= gc.max_uses) return sendMessage(chatId, "⚠️ هذا الكود استنفذ عدد مرات استخدامه.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
     const history = await sql`select * from gift_code_history where code_id = ${gc.id} and player_id = ${playerId}`;
-    if (history.length > 0) {
-      return sendMessage(chatId, "⚠️ لقد استخدمت هذا الكود من قبل!", {
-        inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
-      });
-    }
-
+    if (history.length > 0) return sendMessage(chatId, "⚠️ لقد استخدمت هذا الكود من قبل!", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
     await sql`update players set wallet_balance = wallet_balance + ${gc.amount} where id = ${playerId}`;
     await sql`update gift_codes set used_count = used_count + 1 where id = ${gc.id}`;
     await sql`insert into gift_code_history (code_id, player_id) values (${gc.id}, ${playerId})`;
-
-    await sendMessage(chatId, `🎉 *مبروك!*\n\nتمت إضافة ${gc.amount.toLocaleString("ar-EG")} ل.س إلى رصيدك.`, {
-      inline_keyboard: [[{ text: "💰 عرض رصيدي", callback_data: "check_balance" }]],
-    }, "Markdown");
-
+    await sendMessage(chatId, `🎉 *مبروك!*\n\nتمت إضافة ${gc.amount.toLocaleString("ar-EG")} ل.س إلى رصيدك.`, { inline_keyboard: [[{ text: "💰 عرض رصيدي", callback_data: "check_balance" }]] }, "Markdown");
   } catch (error) {
-    console.error("Gift code error:", error);
     await sendMessage(chatId, "❌ حدث خطأ أثناء تفعيل الكود.");
   }
 }
