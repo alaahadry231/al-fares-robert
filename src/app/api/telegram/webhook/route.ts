@@ -11,11 +11,18 @@ let tempGiftUses = 0;
 let awaitingPlayerGiftCode = false;
 let adminReplyingToPlayer: string | null = null;
 
-// 👇 حالات البث الجماعي (جديد)
-let awaitingBroadcastChoice = false; // هل بدو صورة؟
-let awaitingBroadcastPhoto = false; // استقبال رابط الصورة
-let awaitingBroadcastText = false; // استقبال النص
-let broadcastPhotoUrl = ""; // حفظ رابط الصورة مؤقتاً
+// 👇 حالات البث الجماعي
+let awaitingBroadcastChoice = false;
+let awaitingBroadcastPhoto = false;
+let awaitingBroadcastText = false;
+let awaitingBroadcastButtonChoice = false;
+let awaitingBroadcastButtonText = false;
+let awaitingBroadcastButtonUrl = false;
+
+let broadcastPhotoUrl = "";
+let broadcastText = "";
+let broadcastButtonText = "";
+let broadcastButtonUrl = "";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,11 +43,7 @@ export async function POST(req: NextRequest) {
       // --- أوامر المدير ---
       if (chatId === ADMIN_ID) {
         if (data === "main_menu") {
-          awaitingGiftCode = false;
-          awaitingBroadcastChoice = false;
-          awaitingBroadcastPhoto = false;
-          awaitingBroadcastText = false;
-          broadcastPhotoUrl = "";
+          resetBroadcastState();
           await sendAdminMainMenu(chatId, messageId);
         } else if (data === "codes_menu") {
           await sendCodesMenu(chatId, messageId);
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest) {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
         } 
-        // 👇 البث الجماعي (مع خيار الصورة)
+        // 👇 البث الجماعي
         else if (data === "broadcast_menu") {
           awaitingBroadcastChoice = true;
           await editMessage(chatId, messageId, "📢 *الرسالة الجماعية*\n\nهل تريد إرسال صورة مع الرسالة؟", {
@@ -74,15 +77,13 @@ export async function POST(req: NextRequest) {
             ],
           }, "Markdown");
         } 
-        // 👇 إذا اختار صورة
         else if (data === "broadcast_with_photo") {
           awaitingBroadcastChoice = false;
           awaitingBroadcastPhoto = true;
-          await editMessage(chatId, messageId, "🖼️ *أرسل رابط الصورة الآن:*\n\n(يجب أن يكون رابطاً مباشراً للصورة، مثلاً من Imgur أو Catbox)", {
+          await editMessage(chatId, messageId, "🖼️ *أرسل رابط الصورة الآن:*\n\n(يجب أن يكون رابطاً مباشراً للصورة)", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
         } 
-        // 👇 إذا اختار نص فقط
         else if (data === "broadcast_text_only") {
           awaitingBroadcastChoice = false;
           awaitingBroadcastText = true;
@@ -90,13 +91,28 @@ export async function POST(req: NextRequest) {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
         }
+        // 👇 إضافة زر للرسالة
+        else if (data === "broadcast_add_button") {
+          awaitingBroadcastButtonChoice = false;
+          awaitingBroadcastButtonText = true;
+          await editMessage(chatId, messageId, "✍️ *أرسل نص الزر الآن:*\n\n(مثلاً: اشترك بالقناة)", {
+            inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
+          }, "Markdown");
+        }
+        else if (data === "broadcast_no_button") {
+          awaitingBroadcastButtonChoice = false;
+          await sendBroadcastFinal(chatId, messageId);
+        }
+        // 👇 أزرار الأكواد
         else if (data === "gen_10") {
           await generateCodes(chatId, messageId, 10);
         } else if (data === "gen_50") {
           await generateCodes(chatId, messageId, 50);
         } else if (data === "view_codes") {
           await viewAvailableCodes(chatId, messageId);
-        } else if (data.startsWith("deliver_")) {
+        }
+        // 👇 أزرار الجوائز واللاعبين
+        else if (data.startsWith("deliver_")) {
           const prizeId = data.split("_")[1];
           await deliverPrize(chatId, messageId, parseInt(prizeId));
         } else if (data.startsWith("ban_")) {
@@ -175,50 +191,59 @@ export async function POST(req: NextRequest) {
             const uses = parseInt(text);
             if (isNaN(uses)) return sendMessage(chatId, "⚠️ أرسل رقم صحيح.");
             tempGiftUses = uses;
-
             const code = Math.random().toString(36).substring(2, 8).toUpperCase();
             await sql`insert into gift_codes (code, amount, max_uses) values (${code}, ${tempGiftAmount}, ${tempGiftUses})`;
-            
             await sendMessage(chatId, `✅ *تم إنشاء الكود بنجاح!*\n\n🎁 الجائزة: ${tempGiftAmount} ل.س\n🔢 عدد المرات: ${tempGiftUses}\n\n🎟️ الكود: \`${code}\`\n\nيمكنك نسخه وإرساله للاعبين.`, {
               inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
             }, "Markdown");
-            
             awaitingGiftCode = false; tempGiftAmount = 0; tempGiftUses = 0;
           }
           return NextResponse.json({ ok: true });
         }
 
-        // 👇 استقبال رابط الصورة
+        // 👇 البث الجماعي (استقبال الخطوات)
         if (awaitingBroadcastPhoto) {
           awaitingBroadcastPhoto = false;
           broadcastPhotoUrl = text.trim();
           awaitingBroadcastText = true;
-          await sendMessage(chatId, "✅ تم حفظ رابط الصورة.\n\n📝 *الآن أرسل النص الذي تريد إرساله مع الصورة:*", {
+          await sendMessage(chatId, "✅ تم حفظ رابط الصورة.\n\n📝 *الآن أرسل النص الذي تريد إرساله:*", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
           return NextResponse.json({ ok: true });
         }
 
-        // 👇 استقبال النص (سواء مع صورة أو بدون)
         if (awaitingBroadcastText) {
           awaitingBroadcastText = false;
-          const photoToSend = broadcastPhotoUrl;
-          broadcastPhotoUrl = ""; // تصفير
-          
-          if (photoToSend) {
-            await sendBroadcastWithPhoto(chatId, text, photoToSend);
-          } else {
-            await sendBroadcast(chatId, text);
-          }
+          broadcastText = text;
+          awaitingBroadcastButtonChoice = true;
+          await sendMessage(chatId, "✅ تم حفظ النص.\n\n🔘 *هل تريد إضافة زر مع الرسالة؟*", {
+            inline_keyboard: [
+              [{ text: "🔗 نعم، أضف زر", callback_data: "broadcast_add_button" }],
+              [{ text: "❌ لا، بدون زر", callback_data: "broadcast_no_button" }],
+            ],
+          }, "Markdown");
+          return NextResponse.json({ ok: true });
+        }
+
+        if (awaitingBroadcastButtonText) {
+          awaitingBroadcastButtonText = false;
+          broadcastButtonText = text;
+          awaitingBroadcastButtonUrl = true;
+          await sendMessage(chatId, "✍️ *أرسل رابط الزر الآن:*\n\n(مثلاً: https://t.me/AlFaresRobert)", {
+            inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
+          }, "Markdown");
+          return NextResponse.json({ ok: true });
+        }
+
+        if (awaitingBroadcastButtonUrl) {
+          awaitingBroadcastButtonUrl = false;
+          broadcastButtonUrl = text.trim();
+          await sendBroadcastFinal(chatId); // 👈 تنفيذ البث
           return NextResponse.json({ ok: true });
         }
 
         if (text === "/admin" || text === "/start") {
-          awaitingGiftCode = false;
-          awaitingBroadcastChoice = false;
-          awaitingBroadcastPhoto = false;
-          awaitingBroadcastText = false;
-          broadcastPhotoUrl = "";
+          resetBroadcastState();
           await sendAdminMainMenu(chatId);
         }
         return NextResponse.json({ ok: true });
@@ -263,7 +288,6 @@ export async function POST(req: NextRequest) {
 }
 
 // ================= دوال التحقق من الاشتراك =================
-
 async function checkSubscription(chatId: string): Promise<boolean> {
   try {
     const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getChatMember`, {
@@ -282,7 +306,6 @@ async function checkSubscription(chatId: string): Promise<boolean> {
 }
 
 // ================= دوال المدير =================
-
 async function sendAdminMainMenu(chatId: string, messageId?: number) {
   const text = `👋 أهلاً بك يا مدير الموقع!\n\nاختر من القائمة التالية:`;
   const keyboard = {
@@ -316,10 +339,8 @@ async function sendGiftCodesList(chatId: string, messageId: number) {
     order by created_at desc 
     limit 10
   `;
-
   let text = `📜 *سجل أكواد الهدايا (أحدث 10)*\n\n`;
   const keyboardRows: any[] = [];
-
   if (codes.length === 0) {
     text += "لا توجد أكواد هدايا بعد.";
   } else {
@@ -328,7 +349,6 @@ async function sendGiftCodesList(chatId: string, messageId: number) {
       keyboardRows.push([{ text: `🔍 عرض تفاصيل ${c.code}`, callback_data: `gift_details_${c.id}` }]);
     });
   }
-
   keyboardRows.push([{ text: "⬅️ رجوع", callback_data: "main_menu" }]);
   await editMessage(chatId, messageId, text, { inline_keyboard: keyboardRows }, "Markdown");
 }
@@ -337,9 +357,7 @@ async function sendGiftCodeDetails(chatId: string, messageId: number, codeId: nu
   try {
     const codeInfo = await sql`select * from gift_codes where id = ${codeId}`;
     if (codeInfo.length === 0) return editMessage(chatId, messageId, "⚠️ الكود غير موجود.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "gift_history_menu" }]] });
-
     const code = codeInfo[0];
-
     const history = await sql`
       select h.used_at, p.nickname, p.telegram_username 
       from gift_code_history h
@@ -347,44 +365,26 @@ async function sendGiftCodeDetails(chatId: string, messageId: number, codeId: nu
       where h.code_id = ${codeId}
       order by h.used_at desc
     `;
-
     let text = `🎟️ *تفاصيل الكود:* \`${code.code}\`\n\n`;
     text += `💰 *قيمة الهدية:* ${code.amount} ل.س\n`;
     text += `🔢 *الحد الأقصى للاستخدام:* ${code.max_uses}\n`;
     text += `✅ *تم استخدامه:* ${code.used_count} مرة\n\n`;
     text += `👥 *المستخدمون:*\n`;
-
     const keyboardRows: any[] = [];
-
     if (history.length === 0) {
       text += "لا أحد استخدم هذا الكود بعد.";
     } else {
       history.forEach((h: any, i: number) => {
-        const date = new Date(h.used_at).toLocaleString("ar-EG", { 
-          timeZone: "Asia/Damascus", 
-          month: "short", 
-          day: "numeric", 
-          hour: "2-digit", 
-          minute: "2-digit" 
-        });
-        
+        const date = new Date(h.used_at).toLocaleString("ar-EG", { timeZone: "Asia/Damascus", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
         const usernameDisplay = h.telegram_username ? ` (@${h.telegram_username})` : "";
         text += `${i + 1}. ${h.nickname}${usernameDisplay} - ${date}\n`;
-
         if (h.telegram_username) {
-          keyboardRows.push([
-            { text: `💬 تواصل مع ${h.nickname}`, url: `https://t.me/${h.telegram_username}` }
-          ]);
+          keyboardRows.push([{ text: `💬 تواصل مع ${h.nickname}`, url: `https://t.me/${h.telegram_username}` }]);
         }
       });
     }
-
     keyboardRows.push([{ text: "⬅️ رجوع للسجل", callback_data: "gift_history_menu" }]);
-
-    await editMessage(chatId, messageId, text, {
-      inline_keyboard: keyboardRows,
-    }, "Markdown");
-
+    await editMessage(chatId, messageId, text, { inline_keyboard: keyboardRows }, "Markdown");
   } catch (error) {
     console.error("Gift details error:", error);
     await editMessage(chatId, messageId, "❌ حدث خطأ.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "gift_history_menu" }]] });
@@ -400,16 +400,10 @@ async function generateCodes(chatId: string, messageId: number, count: number) {
       generatedCodes.push(randomCode);
     }
     let responseText = `✅ تم توليد ${count} كود بنجاح!\n\n` + generatedCodes.join("\n");
-    await sendMessage(chatId, `\`\`\`\n${responseText}\n\`\`\``, {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
-    }, "MarkdownV2");
-    await editMessage(chatId, messageId, `✅ تم توليد ${count} كود. (شوف الرسالة اللي تحت)`, {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
-    });
+    await sendMessage(chatId, `\`\`\`\n${responseText}\n\`\`\``, { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]] }, "MarkdownV2");
+    await editMessage(chatId, messageId, `✅ تم توليد ${count} كود. (شوف الرسالة اللي تحت)`, { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]] });
   } catch (error) {
-    await editMessage(chatId, messageId, "❌ حدث خطأ.", {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
-    });
+    await editMessage(chatId, messageId, "❌ حدث خطأ.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]] });
   }
 }
 
@@ -419,75 +413,75 @@ async function viewAvailableCodes(chatId: string, messageId: number) {
     let responseText = `📋 *الأكواد المتاحة (أول 20)*\n\n`;
     if (availableCodes.length === 0) responseText += "لا توجد أكواد متاحة حالياً.";
     else availableCodes.forEach((c: any) => responseText += `🔹 \`${c.code}\`\n`);
-
-    await sendMessage(chatId, responseText, {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
-    }, "Markdown");
-    await editMessage(chatId, messageId, "✅ تم عرض الأكواد.", {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
-    });
+    await sendMessage(chatId, responseText, { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]] }, "Markdown");
+    await editMessage(chatId, messageId, "✅ تم عرض الأكواد.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]] });
   } catch (error) {
-    await editMessage(chatId, messageId, "❌ حدث خطأ.", {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
-    });
+    await editMessage(chatId, messageId, "❌ حدث خطأ.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]] });
   }
 }
 
-// 👇 دالة البث الجماعي (نص فقط)
-async function sendBroadcast(chatId: string, text: string) {
+// 👇 تنفيذ البث الجماعي النهائي (مع أو بدون زر)
+async function sendBroadcastFinal(chatId: string, messageId?: number) {
   try {
-    await sendMessage(chatId, "⏳ جاري إرسال الرسالة للاعبين... انتظر قليلاً.");
+    const buttonKeyboard = broadcastButtonText && broadcastButtonUrl ? {
+      inline_keyboard: [[{ text: broadcastButtonText, url: broadcastButtonUrl }]]
+    } : undefined;
+
+    if (messageId) {
+      await editMessage(chatId, messageId, "⏳ جاري إرسال الرسالة...", { inline_keyboard: [] });
+    } else {
+      await sendMessage(chatId, "⏳ جاري إرسال الرسالة للاعبين... انتظر قليلاً.");
+    }
+
     const players = await sql`select telegram_chat_id from players where telegram_chat_id is not null`;
-    if (players.length === 0) return await sendMessage(chatId, "⚠️ لا يوجد لاعبين مربوطين بالبوت حالياً.");
+    if (players.length === 0) {
+      resetBroadcastState();
+      return await sendMessage(chatId, "⚠️ لا يوجد لاعبين مربوطين بالبوت حالياً.");
+    }
+
     let successCount = 0;
     for (const player of players) {
       try {
-        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: player.telegram_chat_id, text: text, parse_mode: "HTML" }),
-        });
+        if (broadcastPhotoUrl) {
+          await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: player.telegram_chat_id, photo: broadcastPhotoUrl, caption: broadcastText, parse_mode: "HTML", reply_markup: buttonKeyboard }),
+          });
+        } else {
+          await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: player.telegram_chat_id, text: broadcastText, parse_mode: "HTML", reply_markup: buttonKeyboard }),
+          });
+        }
         successCount++;
       } catch (e) { console.error(`Failed to send to ${player.telegram_chat_id}`); }
       await new Promise(resolve => setTimeout(resolve, 50));
     }
+
+    resetBroadcastState();
     await sendMessage(chatId, `✅ *تم إرسال الرسالة بنجاح!*\n\nوصلت لـ ${successCount} لاعب من أصل ${players.length}.`, {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
     }, "Markdown");
   } catch (error) {
+    console.error("Broadcast error:", error);
+    resetBroadcastState();
     await sendMessage(chatId, "❌ حدث خطأ أثناء إرسال الرسالة.");
   }
 }
 
-// 👇 دالة البث الجماعي (صورة + نص)
-async function sendBroadcastWithPhoto(chatId: string, caption: string, photoUrl: string) {
-  try {
-    await sendMessage(chatId, "⏳ جاري إرسال الصورة والرسالة للاعبين... انتظر قليلاً.");
-    const players = await sql`select telegram_chat_id from players where telegram_chat_id is not null`;
-    if (players.length === 0) return await sendMessage(chatId, "⚠️ لا يوجد لاعبين مربوطين بالبوت حالياً.");
-    let successCount = 0;
-    for (const player of players) {
-      try {
-        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            chat_id: player.telegram_chat_id, 
-            photo: photoUrl, 
-            caption: caption, 
-            parse_mode: "HTML" 
-          }),
-        });
-        successCount++;
-      } catch (e) { console.error(`Failed to send to ${player.telegram_chat_id}`); }
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    await sendMessage(chatId, `✅ *تم إرسال الصورة والرسالة بنجاح!*\n\nوصلت لـ ${successCount} لاعب من أصل ${players.length}.`, {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
-    }, "Markdown");
-  } catch (error) {
-    await sendMessage(chatId, "❌ حدث خطأ أثناء إرسال الصورة.");
-  }
+function resetBroadcastState() {
+  awaitingBroadcastChoice = false;
+  awaitingBroadcastPhoto = false;
+  awaitingBroadcastText = false;
+  awaitingBroadcastButtonChoice = false;
+  awaitingBroadcastButtonText = false;
+  awaitingBroadcastButtonUrl = false;
+  broadcastPhotoUrl = "";
+  broadcastText = "";
+  broadcastButtonText = "";
+  broadcastButtonUrl = "";
 }
 
 async function sendStatsMenu(chatId: string, messageId: number) {
@@ -495,12 +489,7 @@ async function sendStatsMenu(chatId: string, messageId: number) {
   const codes = await sql`select count(*)::int as count from spin_codes where is_used = false`;
   const prizes = await sql`select count(*)::int as count from prizes where status = 'pending'`;
   const text = `📊 *إحصائيات سريعة*\n\n👥 اللاعبين: ${players[0].count}\n🎟️ الأكواد المتاحة: ${codes[0].count}\n🎁 الجوائز المعلقة: ${prizes[0].count}`;
-  await editMessage(chatId, messageId, text, {
-    inline_keyboard: [
-      [{ text: "🔄 تحديث", callback_data: "stats_menu" }],
-      [{ text: "⬅️ رجوع", callback_data: "main_menu" }],
-    ],
-  }, "Markdown");
+  await editMessage(chatId, messageId, text, { inline_keyboard: [[{ text: "🔄 تحديث", callback_data: "stats_menu" }], [{ text: "⬅️ رجوع", callback_data: "main_menu" }]] }, "Markdown");
 }
 
 async function sendPrizesMenu(chatId: string, messageId: number) {
@@ -549,7 +538,6 @@ async function toggleBan(chatId: string, messageId: number, playerId: number, ba
 }
 
 // ================= دوال اللاعبين =================
-
 async function sendPlayerMenu(chatId: string, messageId?: number) {
   const text = `👋 أهلاً بك في Al Fares Robert!\n\nاختر من القائمة:`;
   const keyboard = {
@@ -565,50 +553,23 @@ async function sendPlayerMenu(chatId: string, messageId?: number) {
 async function showPlayerBalance(chatId: string, messageId: number) {
   const player = await sql`select wallet_balance from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
-  
-  await editMessage(chatId, messageId, `💰 *رصيدك الحالي هو:* ${player[0].wallet_balance.toLocaleString("ar-EG")} ل.س`, {
-    inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
-  }, "Markdown");
+  await editMessage(chatId, messageId, `💰 *رصيدك الحالي هو:* ${player[0].wallet_balance.toLocaleString("ar-EG")} ل.س`, { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] }, "Markdown");
 }
 
 async function requestRedeem(chatId: string, messageId: number) {
   const player = await sql`select id, nickname, wallet_balance, telegram_username, telegram_chat_id from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
-  
   const balance = player[0].wallet_balance;
-  if (balance <= 0) {
-    return editMessage(chatId, messageId, "⚠️ رصيدك صفر، لا يمكنك طلب الاستلام.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
-  }
-
+  if (balance <= 0) return editMessage(chatId, messageId, "⚠️ رصيدك صفر، لا يمكنك طلب الاستلام.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
   const keyboardForAdmin: any[] = [];
-  
   if (player[0].telegram_username) {
-    keyboardForAdmin.push([
-      { text: "💬 تواصل مع اللاعب (مباشر)", url: `https://t.me/${player[0].telegram_username}` }
-    ]);
+    keyboardForAdmin.push([{ text: "💬 تواصل مع اللاعب (مباشر)", url: `https://t.me/${player[0].telegram_username}` }]);
   } else {
-    keyboardForAdmin.push([
-      { text: "📩 أرسل رسالة للاعب", callback_data: `reply_to_${player[0].telegram_chat_id}` }
-    ]);
+    keyboardForAdmin.push([{ text: "📩 أرسل رسالة للاعب", callback_data: `reply_to_${player[0].telegram_chat_id}` }]);
   }
-
-  keyboardForAdmin.push([
-    { text: "✅ تم التسليم (تصفير الرصيد)", callback_data: `zero_balance_${player[0].id}` }
-  ]);
-
-  await sendMessage(
-    ADMIN_ID, 
-    `💸 <b>طلب استلام رصيد جديد!</b>\n\n👤 اللاعب: ${player[0].nickname}\n💰 الرصيد: ${balance.toLocaleString("ar-EG")} ل.س`,
-    { inline_keyboard: keyboardForAdmin },
-    "HTML"
-  );
-
-  await sendMessage(chatId, `✅ *تم إرسال طلبك للمدير!*\n\nسيتم تحويل مبلغ ${balance.toLocaleString("ar-EG")} ل.س إليك قريباً.`, {
-    inline_keyboard: [
-      [{ text: "💬 تواصل مع المدير", url: `https://t.me/${ADMIN_USERNAME}` }],
-      [{ text: "⬅️ رجوع", callback_data: "player_menu" }],
-    ],
-  }, "Markdown");
+  keyboardForAdmin.push([{ text: "✅ تم التسليم (تصفير الرصيد)", callback_data: `zero_balance_${player[0].id}` }]);
+  await sendMessage(ADMIN_ID, `💸 <b>طلب استلام رصيد جديد!</b>\n\n👤 اللاعب: ${player[0].nickname}\n💰 الرصيد: ${balance.toLocaleString("ar-EG")} ل.س`, { inline_keyboard: keyboardForAdmin }, "HTML");
+  await sendMessage(chatId, `✅ *تم إرسال طلبك للمدير!*\n\nسيتم تحويل مبلغ ${balance.toLocaleString("ar-EG")} ل.س إليك قريباً.`, { inline_keyboard: [[{ text: "💬 تواصل مع المدير", url: `https://t.me/${ADMIN_USERNAME}` }], [{ text: "⬅️ رجوع", callback_data: "player_menu" }]] }, "Markdown");
 }
 
 async function zeroBalance(chatId: string, messageId: number, playerId: number) {
@@ -620,9 +581,7 @@ async function zeroBalance(chatId: string, messageId: number, playerId: number) 
     if (p.telegram_chat_id) {
       await sendMessage(p.telegram_chat_id, `✅ *تم تسليم رصيدك بنجاح!*\n\n💰 المبلغ: ${p.wallet_balance.toLocaleString("ar-EG")} ل.س\n\nشكراً لتعاملك معنا! 🎉`);
     }
-    await editMessage(chatId, messageId, `✅ *تم تصفير رصيد اللاعب ${p.nickname} بنجاح!*`, {
-      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
-    }, "Markdown");
+    await editMessage(chatId, messageId, `✅ *تم تصفير رصيد اللاعب ${p.nickname} بنجاح!*`, { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]] }, "Markdown");
   } catch (error) {
     await editMessage(chatId, messageId, "❌ حدث خطأ.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]] });
   }
