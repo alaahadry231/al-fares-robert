@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-// import { sendTelegramNotification } from "@/lib/telegram"; // شلنا الاستيراد لأنه ما عاد فينا نستخدمه مع الأزرار
 
 const ADMIN_ID = "7597432185";
 const ADMIN_USERNAME = "FaresRobert";
@@ -10,6 +9,7 @@ let tempGiftAmount = 0;
 let tempGiftUses = 0;
 let awaitingPlayerGiftCode = false;
 let adminReplyingToPlayer: string | null = null;
+let awaitingBroadcast = false; // 👈 متغير للبث الجماعي
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       if (chatId === ADMIN_ID) {
         if (data === "main_menu") {
           awaitingGiftCode = false;
+          awaitingBroadcast = false;
           await sendAdminMainMenu(chatId, messageId);
         } else if (data === "codes_menu") {
           await sendCodesMenu(chatId, messageId);
@@ -48,9 +49,24 @@ export async function POST(req: NextRequest) {
           await editMessage(chatId, messageId, "🎁 *توليد كود هدية*\n\nأرسل لي قيمة الجائزة (مثلاً: 5000):", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
-        } else if (data === "broadcast_menu") {
-          // كود البث القديم
-        } else if (data.startsWith("deliver_")) {
+        } 
+        // 👇 زر البث الجماعي
+        else if (data === "broadcast_menu") {
+          awaitingBroadcast = true;
+          await editMessage(chatId, messageId, "📢 *الرسالة الجماعية*\n\nأرسل الآن الرسالة التي تريد إرسالها لجميع اللاعبين:", {
+            inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
+          }, "Markdown");
+        }
+        // 👇 أزرار الأكواد
+        else if (data === "gen_10") {
+          await generateCodes(chatId, messageId, 10);
+        } else if (data === "gen_50") {
+          await generateCodes(chatId, messageId, 50);
+        } else if (data === "view_codes") {
+          await viewAvailableCodes(chatId, messageId);
+        }
+        // 👇 أزرار الجوائز واللاعبين
+        else if (data.startsWith("deliver_")) {
           const prizeId = data.split("_")[1];
           await deliverPrize(chatId, messageId, parseInt(prizeId));
         } else if (data.startsWith("ban_")) {
@@ -59,9 +75,7 @@ export async function POST(req: NextRequest) {
         } else if (data.startsWith("unban_")) {
           const playerId = data.split("_")[1];
           await toggleBan(chatId, messageId, parseInt(playerId), false);
-        } 
-        // 👇 زر "أرسل رسالة للاعب"
-        else if (data.startsWith("reply_to_")) {
+        } else if (data.startsWith("reply_to_")) {
           const targetChatId = data.split("_")[2];
           adminReplyingToPlayer = targetChatId;
           await editMessage(chatId, messageId, "✍️ اكتب الرسالة التي تريد إرسالها للاعب الآن:", {
@@ -129,8 +143,17 @@ export async function POST(req: NextRequest) {
           }
           return NextResponse.json({ ok: true });
         }
+
+        // 👇 البث الجماعي
+        if (awaitingBroadcast) {
+          awaitingBroadcast = false;
+          await sendBroadcast(chatId, text);
+          return NextResponse.json({ ok: true });
+        }
+
         if (text === "/admin" || text === "/start") {
           awaitingGiftCode = false;
+          awaitingBroadcast = false;
           await sendAdminMainMenu(chatId);
         }
         return NextResponse.json({ ok: true });
@@ -206,7 +229,7 @@ async function generateCodes(chatId: string, messageId: number, count: number) {
     await sendMessage(chatId, `\`\`\`\n${responseText}\n\`\`\``, {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
     }, "MarkdownV2");
-    await editMessage(chatId, messageId, `✅ تم توليد ${count} كود.`, {
+    await editMessage(chatId, messageId, `✅ تم توليد ${count} كود. (شوف الرسالة اللي تحت)`, {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
     });
   } catch (error) {
@@ -233,6 +256,45 @@ async function viewAvailableCodes(chatId: string, messageId: number) {
     await editMessage(chatId, messageId, "❌ حدث خطأ.", {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
     });
+  }
+}
+
+// 👇 دالة البث الجماعي
+async function sendBroadcast(chatId: string, text: string) {
+  try {
+    await sendMessage(chatId, "⏳ جاري إرسال الرسالة للاعبين... انتظر قليلاً.");
+
+    const players = await sql`select telegram_chat_id from players where telegram_chat_id is not null`;
+
+    if (players.length === 0) {
+      await sendMessage(chatId, "⚠️ لا يوجد لاعبين مربوطين بالبوت حالياً.");
+      return;
+    }
+
+    let successCount = 0;
+    for (const player of players) {
+      try {
+        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: player.telegram_chat_id,
+            text: text,
+            parse_mode: "HTML",
+          }),
+        });
+        successCount++;
+      } catch (e) {
+        console.error(`Failed to send to ${player.telegram_chat_id}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    await sendMessage(chatId, `✅ *تم إرسال الرسالة بنجاح!*\n\nوصلت لـ ${successCount} لاعب من أصل ${players.length}.`, {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+    }, "Markdown");
+  } catch (error) {
+    await sendMessage(chatId, "❌ حدث خطأ أثناء إرسال الرسالة.");
   }
 }
 
@@ -321,7 +383,6 @@ async function showPlayerBalance(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
-// 👇 هون التعديل: استخدمنا sendMessage بدل sendTelegramNotification عشان الأزرار
 async function requestRedeem(chatId: string, messageId: number) {
   const player = await sql`select id, nickname, wallet_balance, telegram_username, telegram_chat_id from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
@@ -343,7 +404,6 @@ async function requestRedeem(chatId: string, messageId: number) {
     ]);
   }
 
-  // الإرسال للمدير باستخدام sendMessage عشان نقدر نمرر الأزرار
   await sendMessage(
     ADMIN_ID, 
     `💸 <b>طلب استلام رصيد جديد!</b>\n\n👤 اللاعب: ${player[0].nickname}\n💰 الرصيد: ${balance.toLocaleString("ar-EG")} ل.س`,
