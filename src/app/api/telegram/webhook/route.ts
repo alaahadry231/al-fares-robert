@@ -5,10 +5,13 @@ import { sendTelegramNotification } from "@/lib/telegram";
 const ADMIN_ID = "7597432185";
 const ADMIN_USERNAME = "FaresRobert"; // 👈 معرف حسابك الشخصي لاستلام الرصيد
 
-// لحفظ حالة المدير (عشان يعرف إنه عم يولد كود)
+// متغيرات لحفظ حالة المدير (عشان يعرف إنه عم يولد كود)
 let awaitingGiftCode = false;
 let tempGiftAmount = 0;
 let tempGiftUses = 0;
+
+// متغير لحفظ حالة اللاعب (عشان يعرف إنه عم يدخل كود هدية)
+let awaitingPlayerGiftCode = false;
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +45,8 @@ export async function POST(req: NextRequest) {
           await sendPlayersMenu(chatId, messageId);
         } else if (data === "gift_menu") {
           awaitingGiftCode = true;
+          tempGiftAmount = 0;
+          tempGiftUses = 0;
           await editMessage(chatId, messageId, "🎁 *توليد كود هدية*\n\nأرسل لي قيمة الجائزة (مثلاً: 5000):", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
@@ -62,12 +67,14 @@ export async function POST(req: NextRequest) {
 
       // --- أوامر اللاعبين ---
       if (data === "player_menu") {
+        awaitingPlayerGiftCode = false;
         await sendPlayerMenu(chatId, messageId);
       } else if (data === "check_balance") {
         await showPlayerBalance(chatId, messageId);
       } else if (data === "redeem_balance") {
         await requestRedeem(chatId, messageId);
       } else if (data === "enter_gift_code") {
+        awaitingPlayerGiftCode = true;
         await editMessage(chatId, messageId, "🎁 *كود الهدية*\n\nأرسل لي كود الهدية الآن:", {
           inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
         }, "Markdown");
@@ -108,18 +115,28 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ ok: true });
         }
         if (text === "/admin" || text === "/start") {
+          awaitingGiftCode = false;
           await sendAdminMainMenu(chatId);
         }
         return NextResponse.json({ ok: true });
       }
 
-      // --- اللاعبين (استخدام كود الهدية) ---
-      // بنفترض إنه اللاعب إذا بعت رسالة وهو مش عم يعمل شي تاني، إنها كود هدية
+      // --- اللاعبين ---
       const player = await sql`select id, nickname, wallet_balance from players where telegram_chat_id = ${chatId}`;
       
       if (player.length > 0) {
-        // محاولة استخدام الكود
-        await tryUseGiftCode(chatId, text, player[0].id);
+        if (text === "/start") {
+          // عرض القائمة الرئيسية للاعب
+          awaitingPlayerGiftCode = false;
+          await sendPlayerMenu(chatId);
+        } else if (awaitingPlayerGiftCode) {
+          // إذا كان اللاعب في وضع إدخال الكود
+          awaitingPlayerGiftCode = false; // صفر الحالة بعد المحاولة
+          await tryUseGiftCode(chatId, text, player[0].id);
+        } else {
+          // أي رسالة تانية، نعتبرها محاولة كود مباشرة (اختياري)
+          await tryUseGiftCode(chatId, text, player[0].id);
+        }
       } else {
         await sendMessage(chatId, "⚠️ يجب عليك ربط حسابك بالموقع أولاً لتتمكن من استخدام البوت.");
       }
@@ -152,8 +169,6 @@ async function sendAdminMainMenu(chatId: string, messageId?: number) {
   if (messageId) await editMessage(chatId, messageId, text, keyboard);
   else await sendMessage(chatId, text, keyboard);
 }
-
-// ... (باقي دوال المدير: sendCodesMenu, generateCodes, viewAvailableCodes, sendStatsMenu, sendPrizesMenu, deliverPrize, sendPlayersMenu, toggleBan, sendBroadcast)
 
 async function sendCodesMenu(chatId: string, messageId: number) {
   const text = `🎟️ *إدارة الأكواد*\n\nاختر الإجراء اللي بدك ياه:`;
