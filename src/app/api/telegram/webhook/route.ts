@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { sendTelegramNotification } from "@/lib/telegram";
 
 const ADMIN_ID = "7597432185";
 
@@ -43,14 +44,17 @@ export async function POST(req: NextRequest) {
         await sendPrizesMenu(chatId, messageId);
       } else if (data === "close_menu") {
         await editMessage(chatId, messageId, "✅ تم إغلاق لوحة التحكم.");
-      } 
-      // 👇 الأزرار الجديدة للأكواد
-      else if (data === "gen_10") {
+      } else if (data === "gen_10") {
         await generateCodes(chatId, messageId, 10);
       } else if (data === "gen_50") {
         await generateCodes(chatId, messageId, 50);
       } else if (data === "view_codes") {
         await viewAvailableCodes(chatId, messageId);
+      } 
+      // 👇 زر تسليم الجائزة
+      else if (data.startsWith("deliver_")) {
+        const prizeId = data.split("_")[1];
+        await deliverPrize(chatId, messageId, parseInt(prizeId));
       }
 
       return NextResponse.json({ ok: true });
@@ -107,7 +111,6 @@ async function generateCodes(chatId: string, messageId: number, count: number) {
   try {
     const generatedCodes: string[] = [];
     
-    // توليد الأكواد وإدخالها بقاعدة البيانات
     for (let i = 0; i < count; i++) {
       const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
       await sql`
@@ -117,16 +120,13 @@ async function generateCodes(chatId: string, messageId: number, count: number) {
       generatedCodes.push(randomCode);
     }
 
-    // تجهيز النص للرد
     let responseText = `✅ تم توليد ${count} كود بنجاح!\n\n`;
     responseText += generatedCodes.join("\n");
     
-    // إرسال رسالة جديدة بالأكواد (عشان ما تتعدل الرسالة القديمة وتصير طويلة)
     await sendMessage(chatId, `\`\`\`\n${responseText}\n\`\`\``, {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
     }, "MarkdownV2");
 
-    // تحديث رسالة القائمة القديمة
     await editMessage(chatId, messageId, `✅ تم توليد ${count} كود. (شوف الرسالة اللي تحت)`, {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "codes_menu" }]],
     });
@@ -186,10 +186,10 @@ async function sendStatsMenu(chatId: string, messageId: number) {
   await editMessage(chatId, messageId, text, keyboard, "Markdown");
 }
 
-// دالة إرسال قائمة الجوائز
+// دالة إرسال قائمة الجوائز (مع زر تسليم لكل جائزة)
 async function sendPrizesMenu(chatId: string, messageId: number) {
   const prizes = await sql`
-    select p.id, p.amount, pl.nickname 
+    select p.id, p.amount, pl.nickname, pl.telegram_chat_id
     from prizes p
     join players pl on p.player_id = pl.id
     where p.status = 'pending'
@@ -198,20 +198,65 @@ async function sendPrizesMenu(chatId: string, messageId: number) {
   `;
 
   let text = `🎁 *الجوائز المعلقة (أول 5)*\n\n`;
+  
+  const keyboardRows: any[] = [];
+
   if (prizes.length === 0) {
     text += "لا توجد جوائز معلقة حالياً.";
   } else {
     prizes.forEach((p: any, i: number) => {
       text += `${i + 1}. ${p.nickname} - ${p.amount.toLocaleString("ar-EG")} ل.س\n`;
+      keyboardRows.push([
+        { text: `✅ تسليم جائزة ${p.nickname} (${p.amount})`, callback_data: `deliver_${p.id}` }
+      ]);
     });
   }
 
-  const keyboard = {
-    inline_keyboard: [
-      [{ text: "⬅️ رجوع", callback_data: "main_menu" }],
-    ],
-  };
-  await editMessage(chatId, messageId, text, keyboard, "Markdown");
+  keyboardRows.push([{ text: "⬅️ رجوع", callback_data: "main_menu" }]);
+
+  await editMessage(chatId, messageId, text, { inline_keyboard: keyboardRows }, "Markdown");
+}
+
+// دالة تسليم الجائزة
+async function deliverPrize(chatId: string, messageId: number, prizeId: number) {
+  try {
+    // 1. تحديث حالة الجائزة لـ "تم التسليم"
+    const result = await sql`
+      update prizes 
+      set status = 'delivered', delivered_at = now()
+      where id = ${prizeId} and status = 'pending'
+      returning *
+    `;
+
+    if (result.length === 0) {
+      await editMessage(chatId, messageId, "⚠️ هذه الجائزة تم تسليمها مسبقاً أو غير موجودة.", {
+        inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "prizes_menu" }]],
+      });
+      return;
+    }
+
+    const prize = result[0];
+
+    // 2. جلب بيانات اللاعب عشان نبعته إشعار
+    const player = await sql`select telegram_chat_id, nickname from players where id = ${prize.player_id}`;
+    
+    if (player.length > 0 && player[0].telegram_chat_id) {
+      // إرسال إشعار للاعب
+      await sendTelegramNotification(
+        `✅ <b>تم تسليم جائزتك!</b>\n\n👤 ${player[0].nickname}\n💰 المبلغ: ${prize.amount.toLocaleString("ar-EG")} ل.س\n\nشكراً لمشاركتك معنا! 🎉`,
+        player[0].telegram_chat_id
+      );
+    }
+
+    // 3. تحديث رسالة الجوائز (عشان تنشال الجائزة من القائمة)
+    await sendPrizesMenu(chatId, messageId);
+
+  } catch (error) {
+    console.error("Deliver prize error:", error);
+    await editMessage(chatId, messageId, "❌ حدث خطأ أثناء تسليم الجائزة.", {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "prizes_menu" }]],
+    });
+  }
 }
 
 // دوال مساعدة
