@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
         await sendStatsMenu(chatId, messageId);
       } else if (data === "prizes_menu") {
         await sendPrizesMenu(chatId, messageId);
+      } else if (data === "players_menu") {
+        await sendPlayersMenu(chatId, messageId);
       } else if (data === "close_menu") {
         await editMessage(chatId, messageId, "✅ تم إغلاق لوحة التحكم.");
       } else if (data === "gen_10") {
@@ -50,11 +52,17 @@ export async function POST(req: NextRequest) {
         await generateCodes(chatId, messageId, 50);
       } else if (data === "view_codes") {
         await viewAvailableCodes(chatId, messageId);
-      } 
-      // 👇 زر تسليم الجائزة
-      else if (data.startsWith("deliver_")) {
+      } else if (data.startsWith("deliver_")) {
         const prizeId = data.split("_")[1];
         await deliverPrize(chatId, messageId, parseInt(prizeId));
+      }
+      // 👇 أزرار إدارة اللاعبين
+      else if (data.startsWith("ban_")) {
+        const playerId = data.split("_")[1];
+        await toggleBan(chatId, messageId, parseInt(playerId), true);
+      } else if (data.startsWith("unban_")) {
+        const playerId = data.split("_")[1];
+        await toggleBan(chatId, messageId, parseInt(playerId), false);
       }
 
       return NextResponse.json({ ok: true });
@@ -85,6 +93,7 @@ async function sendMainMenu(chatId: string, messageId?: number) {
       [{ text: "🎟️ إدارة الأكواد", callback_data: "codes_menu" }],
       [{ text: "📊 الإحصائيات", callback_data: "stats_menu" }],
       [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }],
+      [{ text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
       [{ text: "❌ إغلاق اللوحة", callback_data: "close_menu" }],
     ],
   };
@@ -220,7 +229,6 @@ async function sendPrizesMenu(chatId: string, messageId: number) {
 // دالة تسليم الجائزة
 async function deliverPrize(chatId: string, messageId: number, prizeId: number) {
   try {
-    // 1. تحديث حالة الجائزة لـ "تم التسليم"
     const result = await sql`
       update prizes 
       set status = 'delivered', delivered_at = now()
@@ -236,25 +244,80 @@ async function deliverPrize(chatId: string, messageId: number, prizeId: number) 
     }
 
     const prize = result[0];
-
-    // 2. جلب بيانات اللاعب عشان نبعته إشعار
     const player = await sql`select telegram_chat_id, nickname from players where id = ${prize.player_id}`;
     
     if (player.length > 0 && player[0].telegram_chat_id) {
-      // إرسال إشعار للاعب
       await sendTelegramNotification(
         `✅ <b>تم تسليم جائزتك!</b>\n\n👤 ${player[0].nickname}\n💰 المبلغ: ${prize.amount.toLocaleString("ar-EG")} ل.س\n\nشكراً لمشاركتك معنا! 🎉`,
         player[0].telegram_chat_id
       );
     }
 
-    // 3. تحديث رسالة الجوائز (عشان تنشال الجائزة من القائمة)
     await sendPrizesMenu(chatId, messageId);
 
   } catch (error) {
     console.error("Deliver prize error:", error);
     await editMessage(chatId, messageId, "❌ حدث خطأ أثناء تسليم الجائزة.", {
       inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "prizes_menu" }]],
+    });
+  }
+}
+
+// 👇 دالة إرسال قائمة اللاعبين
+async function sendPlayersMenu(chatId: string, messageId: number) {
+  const players = await sql`
+    select id, nickname, total_points, is_banned 
+    from players 
+    order by total_points desc
+    limit 5
+  `;
+
+  let text = `👥 *أفضل 5 لاعبين (حسب النقاط)*\n\n`;
+  
+  const keyboardRows: any[] = [];
+
+  if (players.length === 0) {
+    text += "لا يوجد لاعبين مسجلين حالياً.";
+  } else {
+    players.forEach((p: any, i: number) => {
+      const status = p.is_banned ? "🚫 محظور" : "✅ نشط";
+      text += `${i + 1}. ${p.nickname} - ${p.total_points.toLocaleString("ar-EG")} نقطة (${status})\n`;
+      
+      if (p.is_banned) {
+        keyboardRows.push([
+          { text: `✅ فك الحظر عن ${p.nickname}`, callback_data: `unban_${p.id}` }
+        ]);
+      } else {
+        keyboardRows.push([
+          { text: `🚫 حظر ${p.nickname}`, callback_data: `ban_${p.id}` }
+        ]);
+      }
+    });
+  }
+
+  keyboardRows.push([{ text: "⬅️ رجوع", callback_data: "main_menu" }]);
+
+  await editMessage(chatId, messageId, text, { inline_keyboard: keyboardRows }, "Markdown");
+}
+
+// 👇 دالة حظر/فك حظر لاعب
+async function toggleBan(chatId: string, messageId: number, playerId: number, ban: boolean) {
+  try {
+    await sql`
+      update players 
+      set is_banned = ${ban}, 
+          ban_reason = ${ban ? "حظر من لوحة التحكم (البوت)" : ""},
+          ban_until = ${ban ? sql`now() + interval '30 days'` : null}
+      where id = ${playerId}
+    `;
+
+    // تحديث القائمة
+    await sendPlayersMenu(chatId, messageId);
+
+  } catch (error) {
+    console.error("Ban error:", error);
+    await editMessage(chatId, messageId, "❌ حدث خطأ أثناء تنفيذ الإجراء.", {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "players_menu" }]],
     });
   }
 }
