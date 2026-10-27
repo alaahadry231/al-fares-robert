@@ -352,6 +352,17 @@ async function showMyReferrals(chatId: string, messageId: number) {
 
   const playerId = player[0].id;
 
+  // 👇 فحص الإحالات المعلقة قبل عرض العداد
+  const pending = await sql`select referrer_id from pending_referrals where referred_chat_id = ${chatId}`;
+  if (pending.length > 0) {
+    const referrerId = pending[0].referrer_id;
+    const existing = await sql`select id from referrals where referred_id = ${playerId}`;
+    if (existing.length === 0 && playerId.toString() !== referrerId.toString()) {
+      await sql`insert into referrals (referrer_id, referred_id) values (${referrerId}, ${playerId})`;
+    }
+    await sql`delete from pending_referrals where referred_chat_id = ${chatId}`;
+  }
+
   const active = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'active'`;
   const cancelled = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'cancelled'`;
 
