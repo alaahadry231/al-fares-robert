@@ -3,21 +3,20 @@ import { sql } from "@/lib/db";
 import { sendTelegramNotification } from "@/lib/telegram";
 
 const ADMIN_ID = "7597432185";
-const ADMIN_USERNAME = "FaresRobert"; // 👈 معرف حسابك الشخصي لاستلام الرصيد
+const ADMIN_USERNAME = "FaresRobert";
 
-// متغيرات لحفظ حالة المدير (عشان يعرف إنه عم يولد كود)
 let awaitingGiftCode = false;
 let tempGiftAmount = 0;
 let tempGiftUses = 0;
-
-// متغير لحفظ حالة اللاعب (عشان يعرف إنه عم يدخل كود هدية)
 let awaitingPlayerGiftCode = false;
+
+// متغير جديد: لحفظ الـ chat_id تبع اللاعب اللي المدير بدو يبعتلو رسالة
+let adminReplyingToPlayer: string | null = null;
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // 1. معالجة الأزرار (Callbacks)
     if (body.callback_query) {
       const callbackQuery = body.callback_query;
       const chatId = callbackQuery.message.chat.id.toString();
@@ -61,6 +60,14 @@ export async function POST(req: NextRequest) {
         } else if (data.startsWith("unban_")) {
           const playerId = data.split("_")[1];
           await toggleBan(chatId, messageId, parseInt(playerId), false);
+        } 
+        // 👇 زر "أرسل رسالة للاعب" (لللاعبين اللي ما عندهم username)
+        else if (data.startsWith("reply_to_")) {
+          const targetChatId = data.split("_")[2];
+          adminReplyingToPlayer = targetChatId;
+          await editMessage(chatId, messageId, "✍️ اكتب الرسالة التي تريد إرسالها للاعب الآن:", {
+            inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
+          }, "Markdown");
         }
         return NextResponse.json({ ok: true });
       }
@@ -83,7 +90,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // 2. معالجة الرسائل النصية
     if (body.message) {
       const message = body.message;
       const chatId = message.chat.id.toString();
@@ -91,6 +97,17 @@ export async function POST(req: NextRequest) {
 
       // --- المدير ---
       if (chatId === ADMIN_ID) {
+        // إذا كان المدير عم يرد على لاعب معين
+        if (adminReplyingToPlayer) {
+          const targetId = adminReplyingToPlayer;
+          adminReplyingToPlayer = null;
+          await sendMessage(targetId, `📩 *رسالة من الإدارة:*\n\n${text}`, {
+            inline_keyboard: [[{ text: "💬 الرد على المدير", url: `https://t.me/${ADMIN_USERNAME}` }]],
+          }, "Markdown");
+          await sendMessage(chatId, "✅ تم إرسال الرسالة للاعب بنجاح.");
+          return NextResponse.json({ ok: true });
+        }
+
         if (awaitingGiftCode) {
           if (tempGiftAmount === 0) {
             const amount = parseInt(text);
@@ -102,7 +119,6 @@ export async function POST(req: NextRequest) {
             if (isNaN(uses)) return sendMessage(chatId, "⚠️ أرسل رقم صحيح.");
             tempGiftUses = uses;
 
-            // توليد الكود
             const code = Math.random().toString(36).substring(2, 8).toUpperCase();
             await sql`insert into gift_codes (code, amount, max_uses) values (${code}, ${tempGiftAmount}, ${tempGiftUses})`;
             
@@ -122,19 +138,16 @@ export async function POST(req: NextRequest) {
       }
 
       // --- اللاعبين ---
-      const player = await sql`select id, nickname, wallet_balance from players where telegram_chat_id = ${chatId}`;
+      const player = await sql`select id, nickname, wallet_balance, telegram_username from players where telegram_chat_id = ${chatId}`;
       
       if (player.length > 0) {
         if (text === "/start") {
-          // عرض القائمة الرئيسية للاعب
           awaitingPlayerGiftCode = false;
           await sendPlayerMenu(chatId);
         } else if (awaitingPlayerGiftCode) {
-          // إذا كان اللاعب في وضع إدخال الكود
-          awaitingPlayerGiftCode = false; // صفر الحالة بعد المحاولة
+          awaitingPlayerGiftCode = false;
           await tryUseGiftCode(chatId, text, player[0].id);
         } else {
-          // أي رسالة تانية، نعتبرها محاولة كود مباشرة (اختياري)
           await tryUseGiftCode(chatId, text, player[0].id);
         }
       } else {
@@ -309,8 +322,9 @@ async function showPlayerBalance(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
+// 👇 دالة استلام الرصيد المعدلة (تضيف زرين للمدير)
 async function requestRedeem(chatId: string, messageId: number) {
-  const player = await sql`select id, nickname, wallet_balance from players where telegram_chat_id = ${chatId}`;
+  const player = await sql`select id, nickname, wallet_balance, telegram_username, telegram_chat_id from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
   
   const balance = player[0].wallet_balance;
@@ -318,20 +332,35 @@ async function requestRedeem(chatId: string, messageId: number) {
     return editMessage(chatId, messageId, "⚠️ رصيدك صفر، لا يمكنك طلب الاستلام.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
   }
 
-  // إرسال إشعار للمدير
+  // تجهيز أزرار التواصل للمدير
+  const keyboardForAdmin: any[] = [];
+  
+  if (player[0].telegram_username) {
+    keyboardForAdmin.push([
+      { text: "💬 تواصل مع اللاعب (مباشر)", url: `https://t.me/${player[0].telegram_username}` }
+    ]);
+  } else {
+    // إذا ما عندو username، نضيف زر يخلي المدير يبعت رسالة عن طريق البوت
+    keyboardForAdmin.push([
+      { text: "📩 أرسل رسالة للاعب", callback_data: `reply_to_${player[0].telegram_chat_id}` }
+    ]);
+  }
+
   await sendTelegramNotification(
-    `💸 <b>طلب استلام رصيد جديد!</b>\n\n👤 اللاعب: ${player[0].nickname}\n💰 الرصيد: ${balance.toLocaleString("ar-EG")} ل.س\n\nاضغط على الرابط للتواصل: @${ADMIN_USERNAME}`
+    `💸 <b>طلب استلام رصيد جديد!</b>\n\n👤 اللاعب: ${player[0].nickname}\n💰 الرصيد: ${balance.toLocaleString("ar-EG")} ل.س`,
+    undefined,
+    undefined,
+    { inline_keyboard: keyboardForAdmin }
   );
 
-  // إرسال رسالة للاعب مع زر التواصل
-  await sendMessage(chatId, `✅ *تم إرسال طلبك للمدير!*\n\nسيتم تحويل مبلغ ${balance.toLocaleString("ar-EG")} ل.س إليك قريباً. للتواصل المباشر اضغط على الزر بالأسفل:`, {
+  // إرسال رسالة للاعب
+  await sendMessage(chatId, `✅ *تم إرسال طلبك للمدير!*\n\nسيتم تحويل مبلغ ${balance.toLocaleString("ar-EG")} ل.س إليك قريباً.`, {
     inline_keyboard: [
-      [{ text: "💬 تواصل مع المدير على تلغرام", url: `https://t.me/${ADMIN_USERNAME}` }],
+      [{ text: "💬 تواصل مع المدير", url: `https://t.me/${ADMIN_USERNAME}` }],
       [{ text: "⬅️ رجوع", callback_data: "player_menu" }],
     ],
   }, "Markdown");
 
-  // تصفير الرصيد بعد الطلب (عشان ما يطلب مرتين)
   await sql`update players set wallet_balance = 0 where id = ${player[0].id}`;
 }
 
@@ -339,7 +368,6 @@ async function tryUseGiftCode(chatId: string, code: string, playerId: number) {
   try {
     const upperCode = code.trim().toUpperCase();
     
-    // 1. البحث عن الكود
     const giftCode = await sql`select * from gift_codes where code = ${upperCode}`;
     if (giftCode.length === 0) {
       return sendMessage(chatId, "❌ الكود غير صحيح. تأكد منه وحاول مرة تانية.", {
@@ -349,14 +377,12 @@ async function tryUseGiftCode(chatId: string, code: string, playerId: number) {
 
     const gc = giftCode[0];
 
-    // 2. التأكد من صلاحية الكود
     if (gc.used_count >= gc.max_uses) {
       return sendMessage(chatId, "⚠️ هذا الكود استنفذ عدد مرات استخدامه.", {
         inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
       });
     }
 
-    // 3. التأكد إنه اللاعب ما استخدم هالكود قبل هيك
     const history = await sql`select * from gift_code_history where code_id = ${gc.id} and player_id = ${playerId}`;
     if (history.length > 0) {
       return sendMessage(chatId, "⚠️ لقد استخدمت هذا الكود من قبل!", {
@@ -364,7 +390,6 @@ async function tryUseGiftCode(chatId: string, code: string, playerId: number) {
       });
     }
 
-    // 4. إضافة الرصيد وتحديث الكود
     await sql`update players set wallet_balance = wallet_balance + ${gc.amount} where id = ${playerId}`;
     await sql`update gift_codes set used_count = used_count + 1 where id = ${gc.id}`;
     await sql`insert into gift_code_history (code_id, player_id) values (${gc.id}, ${playerId})`;
