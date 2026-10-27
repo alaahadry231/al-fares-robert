@@ -76,14 +76,17 @@ export async function POST(req: NextRequest) {
             ],
           }, "Markdown");
         } else if (data === "confirm_reset_referrals") {
-          await sql`update referrals set status = 'cancelled'`;
-          await sql`update referral_settings set last_reset_at = now() where id = 1`;
+          // 👇 حذف كل الإحالات (النشطة والملغية) نهائياً
+          await sql`delete from referrals`;
           await sql`delete from pending_referrals`;
-          await editMessage(chatId, messageId, "✅ *تم تصفير جميع الإحالات بنجاح!* بدأ عداد جديد لـ 10 أيام.", {
+          
+          // تحديث وقت التصفير
+          await sql`update referral_settings set last_reset_at = now() where id = 1`;
+
+          await editMessage(chatId, messageId, "✅ *تم تصفير جميع الإحالات (النشطة والملغية) بنجاح!* بدأ عداد جديد لـ 10 أيام.", {
             inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
           }, "Markdown");
         }
-        // 👇 زر تشغيل/إيقاف نظام الإحالات
         else if (data === "toggle_referral_status") {
           await toggleReferralSystem(chatId, messageId);
         }
@@ -436,7 +439,6 @@ async function sendReferralsReport(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
-// 👇 دالة تشغيل/إيقاف نظام الإحالات
 async function toggleReferralSystem(chatId: string, messageId: number) {
   try {
     const current = await sql`select is_active from referral_settings where id = 1`;
@@ -464,9 +466,6 @@ async function checkSubscription(chatId: string): Promise<boolean> {
     });
     const data = await res.json();
     
-    // 👇 نطبع النتيجة عشان نشوف شو صاير
-    console.log("Check subscription for", chatId, ":", data);
-    
     if (data.ok && (data.result.status === "member" || data.result.status === "administrator" || data.result.status === "creator")) {
       return true;
     }
@@ -479,9 +478,7 @@ async function checkSubscription(chatId: string): Promise<boolean> {
 
 // ================= دوال المدير =================
 
-// 👇 القائمة الرئيسية (مع زر حالة الإحالات)
 async function sendAdminMainMenu(chatId: string, messageId?: number) {
-  // نجلب حالة النظام عشان نعرضها عالزر
   const settings = await sql`select is_active from referral_settings where id = 1`;
   const isActive = settings.length > 0 ? settings[0].is_active : true;
   const toggleText = isActive ? "🛑 إيقاف الإحالات" : "✅ تشغيل الإحالات";
@@ -493,7 +490,7 @@ async function sendAdminMainMenu(chatId: string, messageId?: number) {
       [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }, { text: "📊 الإحصائيات", callback_data: "stats_menu" }],
       [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }, { text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
       [{ text: "📢 رسالة جماعية", callback_data: "broadcast_menu" }, { text: "📊 تقرير الإحالات", callback_data: "admin_referrals_report" }],
-      [{ text: "🔄 تصفير الإحالات", callback_data: "admin_reset_referrals" }, { text: toggleText, callback_data: "toggle_referral_status" }], // 👈 زر التحكم
+      [{ text: "🔄 تصفير الإحالات", callback_data: "admin_reset_referrals" }, { text: toggleText, callback_data: "toggle_referral_status" }],
       [{ text: "❌ إغلاق اللوحة", callback_data: "close_menu" }],
     ],
   };
