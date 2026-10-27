@@ -83,6 +83,10 @@ export async function POST(req: NextRequest) {
             inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
           }, "Markdown");
         }
+        // 👇 زر تشغيل/إيقاف نظام الإحالات
+        else if (data === "toggle_referral_status") {
+          await toggleReferralSystem(chatId, messageId);
+        }
         else if (data === "broadcast_menu") {
           awaitingBroadcastChoice = true;
           await editMessage(chatId, messageId, "📢 *الرسالة الجماعية*\n\nهل تريد إرسال صورة مع الرسالة؟", {
@@ -350,6 +354,16 @@ async function showMyReferrals(chatId: string, messageId: number) {
   const player = await sql`select id from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
 
+  // 👇 فحص حالة نظام الإحالات
+  const settings = await sql`select is_active from referral_settings where id = 1`;
+  const isActive = settings.length > 0 ? settings[0].is_active : true;
+
+  if (!isActive) {
+    return editMessage(chatId, messageId, "⚠️ *نظام الإحالات متوقف حالياً*\n\nسيتم تفعيله قريباً جداً. شكراً لتفهمكم!", {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
+    }, "Markdown");
+  }
+
   const playerId = player[0].id;
 
   // 👇 فحص الإحالات المعلقة قبل عرض العداد
@@ -366,7 +380,6 @@ async function showMyReferrals(chatId: string, messageId: number) {
   const active = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'active'`;
   const cancelled = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'cancelled'`;
 
-  const settings = await sql`select last_reset_at from referral_settings where id = 1`;
   const lastReset = settings.length > 0 ? new Date(settings[0].last_reset_at) : new Date();
   
   const endDate = new Date(lastReset.getTime() + 10 * 24 * 60 * 60 * 1000);
@@ -423,6 +436,25 @@ async function sendReferralsReport(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
+// 👇 دالة تشغيل/إيقاف نظام الإحالات
+async function toggleReferralSystem(chatId: string, messageId: number) {
+  try {
+    const current = await sql`select is_active from referral_settings where id = 1`;
+    const newStatus = current.length > 0 ? !current[0].is_active : false;
+
+    await sql`update referral_settings set is_active = ${newStatus} where id = 1`;
+
+    const statusText = newStatus ? "✅ *تم تشغيل نظام الإحالات بنجاح!*" : "🛑 *تم إيقاف نظام الإحالات مؤقتاً.*";
+
+    await editMessage(chatId, messageId, statusText, {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+    }, "Markdown");
+  } catch (error) {
+    console.error("Toggle referral error:", error);
+    await editMessage(chatId, messageId, "❌ حدث خطأ.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]] });
+  }
+}
+
 async function checkSubscription(chatId: string): Promise<boolean> {
   try {
     const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getChatMember`, {
@@ -447,7 +479,13 @@ async function checkSubscription(chatId: string): Promise<boolean> {
 
 // ================= دوال المدير =================
 
+// 👇 القائمة الرئيسية (مع زر حالة الإحالات)
 async function sendAdminMainMenu(chatId: string, messageId?: number) {
+  // نجلب حالة النظام عشان نعرضها عالزر
+  const settings = await sql`select is_active from referral_settings where id = 1`;
+  const isActive = settings.length > 0 ? settings[0].is_active : true;
+  const toggleText = isActive ? "🛑 إيقاف الإحالات" : "✅ تشغيل الإحالات";
+
   const text = `👋 أهلاً بك يا مدير الموقع!\n\nاختر من القائمة التالية:`;
   const keyboard = {
     inline_keyboard: [
@@ -455,7 +493,7 @@ async function sendAdminMainMenu(chatId: string, messageId?: number) {
       [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }, { text: "📊 الإحصائيات", callback_data: "stats_menu" }],
       [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }, { text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
       [{ text: "📢 رسالة جماعية", callback_data: "broadcast_menu" }, { text: "📊 تقرير الإحالات", callback_data: "admin_referrals_report" }],
-      [{ text: "🔄 تصفير الإحالات", callback_data: "admin_reset_referrals" }],
+      [{ text: "🔄 تصفير الإحالات", callback_data: "admin_reset_referrals" }, { text: toggleText, callback_data: "toggle_referral_status" }], // 👈 زر التحكم
       [{ text: "❌ إغلاق اللوحة", callback_data: "close_menu" }],
     ],
   };
