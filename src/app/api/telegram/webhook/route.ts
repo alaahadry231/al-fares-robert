@@ -420,11 +420,15 @@ async function viewAvailableCodes(chatId: string, messageId: number) {
   }
 }
 
-// 👇 تنفيذ البث الجماعي النهائي (مع أو بدون زر)
+// 👇 تنفيذ البث الجماعي النهائي (مع أو بدون زر) - تم إضافة style: "primary"
 async function sendBroadcastFinal(chatId: string, messageId?: number) {
   try {
     const buttonKeyboard = broadcastButtonText && broadcastButtonUrl ? {
-      inline_keyboard: [[{ text: broadcastButtonText, url: broadcastButtonUrl }]]
+      inline_keyboard: [[{ 
+        text: broadcastButtonText, 
+        url: broadcastButtonUrl,
+        style: "primary" // 👈 الزر الأزرق
+      }]]
     } : undefined;
 
     if (messageId) {
