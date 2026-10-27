@@ -4,6 +4,7 @@ import { sql } from "@/lib/db";
 const ADMIN_ID = "7597432185";
 const ADMIN_USERNAME = "FaresRobert";
 const CHANNEL_USERNAME = "@AlFaresRobert";
+const BOT_USERNAME = "AlFaresRobert_bot"; // 👈 اسم البوت
 
 let awaitingGiftCode = false;
 let tempGiftAmount = 0;
@@ -66,6 +67,23 @@ export async function POST(req: NextRequest) {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
         } 
+        // 👇 أزرار الإحالات للمدير
+        else if (data === "admin_referrals_report") {
+          await sendReferralsReport(chatId, messageId);
+        } else if (data === "admin_reset_referrals") {
+          await editMessage(chatId, messageId, "⚠️ *تأكيد التصفير*\n\nهل أنت متأكد من تصفير جميع الإحالات؟ لا يمكن التراجع!", {
+            inline_keyboard: [
+              [{ text: "✅ نعم، صفّر", callback_data: "confirm_reset_referrals" }],
+              [{ text: "⬅️ إلغاء", callback_data: "main_menu" }],
+            ],
+          }, "Markdown");
+        } else if (data === "confirm_reset_referrals") {
+          await sql`update referrals set status = 'cancelled'`; // إلغاء الكل
+          await sql`update referral_settings set last_reset_at = now() where id = 1`; // تصفير الوقت
+          await editMessage(chatId, messageId, "✅ *تم تصفير جميع الإحالات بنجاح!* بدأ عداد جديد لـ 10 أيام.", {
+            inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+          }, "Markdown");
+        }
         // 👇 البث الجماعي
         else if (data === "broadcast_menu") {
           awaitingBroadcastChoice = true;
@@ -91,7 +109,6 @@ export async function POST(req: NextRequest) {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
         }
-        // 👇 إضافة زر للرسالة
         else if (data === "broadcast_add_button") {
           awaitingBroadcastButtonChoice = false;
           awaitingBroadcastButtonText = true;
@@ -147,7 +164,12 @@ export async function POST(req: NextRequest) {
         await editMessage(chatId, messageId, "🎁 *كود الهدية*\n\nأرسل لي كود الهدية الآن:", {
           inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
         }, "Markdown");
-      } else if (data === "check_subscription") {
+      } 
+      // 👇 زر إحالاتي للاعب
+      else if (data === "my_referrals") {
+        await showMyReferrals(chatId, messageId);
+      }
+      else if (data === "check_subscription") {
         const isSubscribed = await checkSubscription(chatId);
         if (isSubscribed) {
           await sendPlayerMenu(chatId, messageId);
@@ -250,6 +272,22 @@ export async function POST(req: NextRequest) {
       }
 
       // --- اللاعبين ---
+      // 👇 التحقق من الإحالة عند دخول لاعب جديد بـ /start ref_123
+      if (text.startsWith("/start ref_")) {
+        const referrerId = text.replace("/start ref_", "").trim();
+        const player = await sql`select id from players where telegram_chat_id = ${chatId}`;
+        
+        if (player.length > 0) {
+          // اللاعب موجود، نسجل الإحالة إذا ما كان مسجل قبل
+          const existing = await sql`select id from referrals where referred_id = ${player[0].id}`;
+          if (existing.length === 0 && player[0].id.toString() !== referrerId) {
+            // نسجل الإحالة
+            await sql`insert into referrals (referrer_id, referred_id) values (${referrerId}, ${player[0].id})`;
+          }
+        }
+        // نكمل للتحقق من الاشتراك والقائمة
+      }
+
       const isSubscribed = await checkSubscription(chatId);
       if (!isSubscribed) {
         await sendMessage(chatId, `⚠️ *يجب عليك الاشتراك بالقناة أولاً!*\n\nاشترك بالقناة ثم اضغط "✅ تحقق من الاشتراك" للتمكن من استخدام البوت.`, {
@@ -264,7 +302,7 @@ export async function POST(req: NextRequest) {
       const player = await sql`select id, nickname, wallet_balance, telegram_username from players where telegram_chat_id = ${chatId}`;
       
       if (player.length > 0) {
-        if (text === "/start") {
+        if (text === "/start" || text.startsWith("/start ref_")) {
           awaitingPlayerGiftCode = false;
           await sendPlayerMenu(chatId);
         } else if (awaitingPlayerGiftCode) {
@@ -285,6 +323,77 @@ export async function POST(req: NextRequest) {
     console.error("Telegram webhook error:", error);
     return NextResponse.json({ error: "Webhook failed" }, { status: 500 });
   }
+}
+
+// ================= دوال الإحالات =================
+
+async function showMyReferrals(chatId: string, messageId: number) {
+  const player = await sql`select id from players where telegram_chat_id = ${chatId}`;
+  if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
+
+  const playerId = player[0].id;
+
+  // جلب الإحالات النشطة والملغية
+  const active = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'active'`;
+  const cancelled = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'cancelled'`;
+
+  // جلب وقت آخر تصفير
+  const settings = await sql`select last_reset_at from referral_settings where id = 1`;
+  const lastReset = settings.length > 0 ? new Date(settings[0].last_reset_at) : new Date();
+  
+  // حساب الوقت المتبقي (10 أيام)
+  const endDate = new Date(lastReset.getTime() + 10 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const diff = endDate.getTime() - now.getTime();
+
+  let timeLeft = "انتهت المدة";
+  if (diff > 0) {
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    timeLeft = `${days} يوم و ${hours} ساعة و ${minutes} دقيقة`;
+  }
+
+  const referralLink = `https://t.me/${BOT_USERNAME}?start=ref_${playerId}`;
+
+  const text = `📊 *إحالاتي*\n\n` +
+               `🔗 *رابط الإحالة الخاص بك:*\n\`${referralLink}\`\n\n` +
+               `👥 *الإحالات النشطة:* ${active[0].count}\n` +
+               `🚫 *الإحالات الملغية:* ${cancelled[0].count}\n\n` +
+               `⏳ *الوقت المتبقي للتصفير:* ${timeLeft}`;
+
+  await editMessage(chatId, messageId, text, {
+    inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
+  }, "Markdown");
+}
+
+async function sendReferralsReport(chatId: string, messageId: number) {
+  const report = await sql`
+    select p.nickname, 
+           count(case when r.status = 'active' then 1 end)::int as active_count,
+           count(case when r.status = 'cancelled' then 1 end)::int as cancelled_count
+    from players p
+    join referrals r on p.id = r.referrer_id
+    group by p.id, p.nickname
+    having count(r.id) > 0
+    order by active_count desc
+  `;
+
+  if (report.length === 0) {
+    return editMessage(chatId, messageId, "📊 *تقرير الإحالات*\n\nلا توجد إحالات مسجلة حالياً.", {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+    }, "Markdown");
+  }
+
+  let text = `📊 *تقرير الإحالات*\n\n`;
+  report.forEach((r: any, i: number) => {
+    text += `${i + 1}. *${r.nickname}*\n`;
+    text += `   ✅ نشطة: ${r.active_count} | 🚫 ملغية: ${r.cancelled_count}\n`;
+  });
+
+  await editMessage(chatId, messageId, text, {
+    inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+  }, "Markdown");
 }
 
 // ================= دوال التحقق من الاشتراك =================
@@ -313,13 +422,16 @@ async function sendAdminMainMenu(chatId: string, messageId?: number) {
       [{ text: "🎟️ إدارة الأكواد", callback_data: "codes_menu" }, { text: "🎁 توليد كود هدية", callback_data: "gift_menu" }],
       [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }, { text: "📊 الإحصائيات", callback_data: "stats_menu" }],
       [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }, { text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
-      [{ text: "📢 رسالة جماعية", callback_data: "broadcast_menu" }],
+      [{ text: "📢 رسالة جماعية", callback_data: "broadcast_menu" }, { text: "📊 تقرير الإحالات", callback_data: "admin_referrals_report" }],
+      [{ text: "🔄 تصفير الإحالات", callback_data: "admin_reset_referrals" }],
       [{ text: "❌ إغلاق اللوحة", callback_data: "close_menu" }],
     ],
   };
   if (messageId) await editMessage(chatId, messageId, text, keyboard);
   else await sendMessage(chatId, text, keyboard);
 }
+
+// ... (باقي دوال المدير: sendCodesMenu, sendGiftCodesList, sendGiftCodeDetails, generateCodes, viewAvailableCodes, sendBroadcastFinal, resetBroadcastState, sendStatsMenu, sendPrizesMenu, deliverPrize, sendPlayersMenu, toggleBan)
 
 async function sendCodesMenu(chatId: string, messageId: number) {
   const text = `🎟️ *إدارة الأكواد*\n\nاختر الإجراء اللي بدك ياه:`;
@@ -420,14 +532,13 @@ async function viewAvailableCodes(chatId: string, messageId: number) {
   }
 }
 
-// 👇 تنفيذ البث الجماعي النهائي (مع أو بدون زر) - تم إضافة style: "primary"
 async function sendBroadcastFinal(chatId: string, messageId?: number) {
   try {
     const buttonKeyboard = broadcastButtonText && broadcastButtonUrl ? {
       inline_keyboard: [[{ 
         text: broadcastButtonText, 
         url: broadcastButtonUrl,
-        style: "primary" // 👈 الزر الأزرق
+        style: "primary"
       }]]
     } : undefined;
 
@@ -547,7 +658,7 @@ async function sendPlayerMenu(chatId: string, messageId?: number) {
   const keyboard = {
     inline_keyboard: [
       [{ text: "🎁 إدخال كود هدية", callback_data: "enter_gift_code" }, { text: "💰 رصيدي", callback_data: "check_balance" }],
-      [{ text: "💸 استلام الرصيد", callback_data: "redeem_balance" }],
+      [{ text: "💸 استلام الرصيد", callback_data: "redeem_balance" }, { text: "📊 إحالاتي", callback_data: "my_referrals" }],
     ],
   };
   if (messageId) await editMessage(chatId, messageId, text, keyboard);
