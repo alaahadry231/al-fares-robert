@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { sendTelegramNotification } from "@/lib/telegram";
+// import { sendTelegramNotification } from "@/lib/telegram"; // شلنا الاستيراد لأنه ما عاد فينا نستخدمه مع الأزرار
 
 const ADMIN_ID = "7597432185";
 const ADMIN_USERNAME = "FaresRobert";
@@ -9,14 +9,13 @@ let awaitingGiftCode = false;
 let tempGiftAmount = 0;
 let tempGiftUses = 0;
 let awaitingPlayerGiftCode = false;
-
-// متغير جديد: لحفظ الـ chat_id تبع اللاعب اللي المدير بدو يبعتلو رسالة
 let adminReplyingToPlayer: string | null = null;
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    // 1. معالجة الأزرار (Callbacks)
     if (body.callback_query) {
       const callbackQuery = body.callback_query;
       const chatId = callbackQuery.message.chat.id.toString();
@@ -61,7 +60,7 @@ export async function POST(req: NextRequest) {
           const playerId = data.split("_")[1];
           await toggleBan(chatId, messageId, parseInt(playerId), false);
         } 
-        // 👇 زر "أرسل رسالة للاعب" (لللاعبين اللي ما عندهم username)
+        // 👇 زر "أرسل رسالة للاعب"
         else if (data.startsWith("reply_to_")) {
           const targetChatId = data.split("_")[2];
           adminReplyingToPlayer = targetChatId;
@@ -90,6 +89,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // 2. معالجة الرسائل النصية
     if (body.message) {
       const message = body.message;
       const chatId = message.chat.id.toString();
@@ -97,7 +97,6 @@ export async function POST(req: NextRequest) {
 
       // --- المدير ---
       if (chatId === ADMIN_ID) {
-        // إذا كان المدير عم يرد على لاعب معين
         if (adminReplyingToPlayer) {
           const targetId = adminReplyingToPlayer;
           adminReplyingToPlayer = null;
@@ -322,7 +321,7 @@ async function showPlayerBalance(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
-// 👇 دالة استلام الرصيد المعدلة (تضيف زرين للمدير)
+// 👇 هون التعديل: استخدمنا sendMessage بدل sendTelegramNotification عشان الأزرار
 async function requestRedeem(chatId: string, messageId: number) {
   const player = await sql`select id, nickname, wallet_balance, telegram_username, telegram_chat_id from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
@@ -332,7 +331,6 @@ async function requestRedeem(chatId: string, messageId: number) {
     return editMessage(chatId, messageId, "⚠️ رصيدك صفر، لا يمكنك طلب الاستلام.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
   }
 
-  // تجهيز أزرار التواصل للمدير
   const keyboardForAdmin: any[] = [];
   
   if (player[0].telegram_username) {
@@ -340,20 +338,19 @@ async function requestRedeem(chatId: string, messageId: number) {
       { text: "💬 تواصل مع اللاعب (مباشر)", url: `https://t.me/${player[0].telegram_username}` }
     ]);
   } else {
-    // إذا ما عندو username، نضيف زر يخلي المدير يبعت رسالة عن طريق البوت
     keyboardForAdmin.push([
       { text: "📩 أرسل رسالة للاعب", callback_data: `reply_to_${player[0].telegram_chat_id}` }
     ]);
   }
 
-  await sendTelegramNotification(
+  // الإرسال للمدير باستخدام sendMessage عشان نقدر نمرر الأزرار
+  await sendMessage(
+    ADMIN_ID, 
     `💸 <b>طلب استلام رصيد جديد!</b>\n\n👤 اللاعب: ${player[0].nickname}\n💰 الرصيد: ${balance.toLocaleString("ar-EG")} ل.س`,
-    undefined,
-    undefined,
-    { inline_keyboard: keyboardForAdmin }
+    { inline_keyboard: keyboardForAdmin },
+    "HTML"
   );
 
-  // إرسال رسالة للاعب
   await sendMessage(chatId, `✅ *تم إرسال طلبك للمدير!*\n\nسيتم تحويل مبلغ ${balance.toLocaleString("ar-EG")} ل.س إليك قريباً.`, {
     inline_keyboard: [
       [{ text: "💬 تواصل مع المدير", url: `https://t.me/${ADMIN_USERNAME}` }],
