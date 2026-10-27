@@ -3,6 +3,7 @@ import { sql } from "@/lib/db";
 
 const ADMIN_ID = "7597432185";
 const ADMIN_USERNAME = "FaresRobert";
+const CHANNEL_USERNAME = "@AlFaresRobert"; // 👈 ضع معرف قناتك هون (مثلاً @MyChannel)
 
 let awaitingGiftCode = false;
 let tempGiftAmount = 0;
@@ -99,6 +100,19 @@ export async function POST(req: NextRequest) {
         await editMessage(chatId, messageId, "🎁 *كود الهدية*\n\nأرسل لي كود الهدية الآن:", {
           inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
         }, "Markdown");
+      } else if (data === "check_subscription") {
+        // 👇 التحقق من الاشتراك بعد ما يضغط "تحقق"
+        const isSubscribed = await checkSubscription(chatId);
+        if (isSubscribed) {
+          await sendPlayerMenu(chatId, messageId);
+        } else {
+          await editMessage(chatId, messageId, `⚠️ لم تشترك بالقناة بعد!\n\nاشترك بالقناة أولاً ثم اضغط "✅ تحقق من الاشتراك".`, {
+            inline_keyboard: [
+              [{ text: "📢 اشترك بالقناة", url: `https://t.me/${CHANNEL_USERNAME.replace('@', '')}` }],
+              [{ text: "✅ تحقق من الاشتراك", callback_data: "check_subscription" }],
+            ],
+          }, "Markdown");
+        }
       }
 
       return NextResponse.json({ ok: true });
@@ -159,6 +173,17 @@ export async function POST(req: NextRequest) {
       }
 
       // --- اللاعبين ---
+      const isSubscribed = await checkSubscription(chatId);
+      if (!isSubscribed) {
+        await sendMessage(chatId, `⚠️ *يجب عليك الاشتراك بالقناة أولاً!*\n\nاشترك بالقناة ثم اضغط "✅ تحقق من الاشتراك" للتمكن من استخدام البوت.`, {
+          inline_keyboard: [
+            [{ text: "📢 اشترك بالقناة", url: `https://t.me/${CHANNEL_USERNAME.replace('@', '')}` }],
+            [{ text: "✅ تحقق من الاشتراك", callback_data: "check_subscription" }],
+          ],
+        }, "Markdown");
+        return NextResponse.json({ ok: true });
+      }
+
       const player = await sql`select id, nickname, wallet_balance, telegram_username from players where telegram_chat_id = ${chatId}`;
       
       if (player.length > 0) {
@@ -185,18 +210,34 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// ================= دوال التحقق من الاشتراك =================
+
+async function checkSubscription(chatId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: CHANNEL_USERNAME, user_id: chatId }),
+    });
+    const data = await res.json();
+    if (data.ok && (data.result.status === "member" || data.result.status === "administrator" || data.result.status === "creator")) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 // ================= دوال المدير =================
 
 async function sendAdminMainMenu(chatId: string, messageId?: number) {
   const text = `👋 أهلاً بك يا مدير الموقع!\n\nاختر من القائمة التالية:`;
   const keyboard = {
     inline_keyboard: [
-      [{ text: "🎟️ إدارة الأكواد", callback_data: "codes_menu" }],
-      [{ text: "🎁 توليد كود هدية", callback_data: "gift_menu" }],
-      [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }],
-      [{ text: "📊 الإحصائيات", callback_data: "stats_menu" }],
-      [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }],
-      [{ text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
+      [{ text: "🎟️ إدارة الأكواد", callback_data: "codes_menu" }, { text: "🎁 توليد كود هدية", callback_data: "gift_menu" }], // 👈 زرين بصف
+      [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }, { text: "📊 الإحصائيات", callback_data: "stats_menu" }],
+      [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }, { text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
       [{ text: "📢 رسالة جماعية", callback_data: "broadcast_menu" }],
       [{ text: "❌ إغلاق اللوحة", callback_data: "close_menu" }],
     ],
@@ -209,8 +250,7 @@ async function sendCodesMenu(chatId: string, messageId: number) {
   const text = `🎟️ *إدارة الأكواد*\n\nاختر الإجراء اللي بدك ياه:`;
   await editMessage(chatId, messageId, text, {
     inline_keyboard: [
-      [{ text: "➕ توليد 10 أكواد", callback_data: "gen_10" }],
-      [{ text: "➕ توليد 50 كود", callback_data: "gen_50" }],
+      [{ text: "➕ توليد 10 أكواد", callback_data: "gen_10" }, { text: "➕ توليد 50 كود", callback_data: "gen_50" }],
       [{ text: "📋 عرض الأكواد المتاحة", callback_data: "view_codes" }],
       [{ text: "⬅️ رجوع", callback_data: "main_menu" }],
     ],
@@ -241,7 +281,6 @@ async function sendGiftCodesList(chatId: string, messageId: number) {
   await editMessage(chatId, messageId, text, { inline_keyboard: keyboardRows }, "Markdown");
 }
 
-// 👇 الدالة المعدلة: إضافة username وزر تواصل
 async function sendGiftCodeDetails(chatId: string, messageId: number, codeId: number) {
   try {
     const codeInfo = await sql`select * from gift_codes where id = ${codeId}`;
@@ -431,8 +470,7 @@ async function sendPlayerMenu(chatId: string, messageId?: number) {
   const text = `👋 أهلاً بك في Al Fares Robert!\n\nاختر من القائمة:`;
   const keyboard = {
     inline_keyboard: [
-      [{ text: "🎁 إدخال كود هدية", callback_data: "enter_gift_code" }],
-      [{ text: "💰 رصيدي", callback_data: "check_balance" }],
+      [{ text: "🎁 إدخال كود هدية", callback_data: "enter_gift_code" }, { text: "💰 رصيدي", callback_data: "check_balance" }], // 👈 زرين بصف
       [{ text: "💸 استلام الرصيد", callback_data: "redeem_balance" }],
     ],
   };
