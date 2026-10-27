@@ -9,7 +9,7 @@ let tempGiftAmount = 0;
 let tempGiftUses = 0;
 let awaitingPlayerGiftCode = false;
 let adminReplyingToPlayer: string | null = null;
-let awaitingBroadcast = false; // 👈 متغير للبث الجماعي
+let awaitingBroadcast = false;
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,24 +49,18 @@ export async function POST(req: NextRequest) {
           await editMessage(chatId, messageId, "🎁 *توليد كود هدية*\n\nأرسل لي قيمة الجائزة (مثلاً: 5000):", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
-        } 
-        // 👇 زر البث الجماعي
-        else if (data === "broadcast_menu") {
+        } else if (data === "broadcast_menu") {
           awaitingBroadcast = true;
           await editMessage(chatId, messageId, "📢 *الرسالة الجماعية*\n\nأرسل الآن الرسالة التي تريد إرسالها لجميع اللاعبين:", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
-        }
-        // 👇 أزرار الأكواد
-        else if (data === "gen_10") {
+        } else if (data === "gen_10") {
           await generateCodes(chatId, messageId, 10);
         } else if (data === "gen_50") {
           await generateCodes(chatId, messageId, 50);
         } else if (data === "view_codes") {
           await viewAvailableCodes(chatId, messageId);
-        }
-        // 👇 أزرار الجوائز واللاعبين
-        else if (data.startsWith("deliver_")) {
+        } else if (data.startsWith("deliver_")) {
           const prizeId = data.split("_")[1];
           await deliverPrize(chatId, messageId, parseInt(prizeId));
         } else if (data.startsWith("ban_")) {
@@ -81,6 +75,11 @@ export async function POST(req: NextRequest) {
           await editMessage(chatId, messageId, "✍️ اكتب الرسالة التي تريد إرسالها للاعب الآن:", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
+        }
+        // 👇 زر تصفير الرصيد
+        else if (data.startsWith("zero_balance_")) {
+          const targetPlayerId = data.split("_")[2];
+          await zeroBalance(chatId, messageId, parseInt(targetPlayerId));
         }
         return NextResponse.json({ ok: true });
       }
@@ -144,7 +143,6 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ ok: true });
         }
 
-        // 👇 البث الجماعي
         if (awaitingBroadcast) {
           awaitingBroadcast = false;
           await sendBroadcast(chatId, text);
@@ -259,7 +257,6 @@ async function viewAvailableCodes(chatId: string, messageId: number) {
   }
 }
 
-// 👇 دالة البث الجماعي
 async function sendBroadcast(chatId: string, text: string) {
   try {
     await sendMessage(chatId, "⏳ جاري إرسال الرسالة للاعبين... انتظر قليلاً.");
@@ -383,6 +380,7 @@ async function showPlayerBalance(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
+// 👇 تعديل: نضيف زر تصفير الرصيد للإشعار
 async function requestRedeem(chatId: string, messageId: number) {
   const player = await sql`select id, nickname, wallet_balance, telegram_username, telegram_chat_id from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
@@ -404,6 +402,11 @@ async function requestRedeem(chatId: string, messageId: number) {
     ]);
   }
 
+  // 👇 إضافة زر تصفير الرصيد
+  keyboardForAdmin.push([
+    { text: "✅ تم التسليم (تصفير الرصيد)", callback_data: `zero_balance_${player[0].id}` }
+  ]);
+
   await sendMessage(
     ADMIN_ID, 
     `💸 <b>طلب استلام رصيد جديد!</b>\n\n👤 اللاعب: ${player[0].nickname}\n💰 الرصيد: ${balance.toLocaleString("ar-EG")} ل.س`,
@@ -417,8 +420,39 @@ async function requestRedeem(chatId: string, messageId: number) {
       [{ text: "⬅️ رجوع", callback_data: "player_menu" }],
     ],
   }, "Markdown");
+}
 
-  await sql`update players set wallet_balance = 0 where id = ${player[0].id}`;
+// 👇 دالة تصفير الرصيد
+async function zeroBalance(chatId: string, messageId: number, playerId: number) {
+  try {
+    const player = await sql`select telegram_chat_id, nickname, wallet_balance from players where id = ${playerId}`;
+    if (player.length === 0) {
+      return editMessage(chatId, messageId, "⚠️ اللاعب غير موجود.", {
+        inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+      });
+    }
+
+    const p = player[0];
+
+    // تصفير الرصيد
+    await sql`update players set wallet_balance = 0 where id = ${playerId}`;
+
+    // إشعار للاعب
+    if (p.telegram_chat_id) {
+      await sendMessage(p.telegram_chat_id, `✅ *تم تسليم رصيدك بنجاح!*\n\n💰 المبلغ: ${p.wallet_balance.toLocaleString("ar-EG")} ل.س\n\nشكراً لتعاملك معنا! 🎉`);
+    }
+
+    // تعديل الرسالة للمدير
+    await editMessage(chatId, messageId, `✅ *تم تصفير رصيد اللاعب ${p.nickname} بنجاح!*`, {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+    }, "Markdown");
+
+  } catch (error) {
+    console.error("Zero balance error:", error);
+    await editMessage(chatId, messageId, "❌ حدث خطأ.", {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+    });
+  }
 }
 
 async function tryUseGiftCode(chatId: string, code: string, playerId: number) {
