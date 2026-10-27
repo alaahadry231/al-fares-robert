@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
         } else if (data === "confirm_reset_referrals") {
           await sql`update referrals set status = 'cancelled'`;
           await sql`update referral_settings set last_reset_at = now() where id = 1`;
+          await sql`delete from pending_referrals`;
           await editMessage(chatId, messageId, "✅ *تم تصفير جميع الإحالات بنجاح!* بدأ عداد جديد لـ 10 أيام.", {
             inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
           }, "Markdown");
@@ -270,14 +271,12 @@ export async function POST(req: NextRequest) {
       if (text.startsWith("/start player_")) {
         const targetPlayerId = text.replace("/start player_", "").trim();
         
-        // تحديث الـ telegram_chat_id للاعب
         await sql`
           update players 
           set telegram_chat_id = ${chatId}, updated_at = now()
           where id = ${targetPlayerId}
         `;
         
-        // إرسال رسالة تأكيد
         await sendMessage(chatId, `✅ *تم ربط حسابك بالبوت بنجاح!*\n\nمن الآن رح توصلك إشعارات الجوائز والتوقعات هنا.`);
       }
 
@@ -291,6 +290,9 @@ export async function POST(req: NextRequest) {
           if (existing.length === 0 && player[0].id.toString() !== referrerId) {
             await sql`insert into referrals (referrer_id, referred_id) values (${referrerId}, ${player[0].id})`;
           }
+        } else {
+          // اللاعب مو مربوط، نخزن الإحالة مؤقتاً
+          await sql`insert into pending_referrals (referrer_id, referred_chat_id) values (${referrerId}, ${chatId})`;
         }
       }
 
@@ -308,6 +310,17 @@ export async function POST(req: NextRequest) {
       const player = await sql`select id, nickname, wallet_balance, telegram_username from players where telegram_chat_id = ${chatId}`;
       
       if (player.length > 0) {
+        // 👇 فحص الإحالات المعلقة (سواء جاء من /start عادي أو ref أو player)
+        const pending = await sql`select referrer_id from pending_referrals where referred_chat_id = ${chatId}`;
+        if (pending.length > 0) {
+          const referrerId = pending[0].referrer_id;
+          const existing = await sql`select id from referrals where referred_id = ${player[0].id}`;
+          if (existing.length === 0 && player[0].id.toString() !== referrerId.toString()) {
+            await sql`insert into referrals (referrer_id, referred_id) values (${referrerId}, ${player[0].id})`;
+          }
+          await sql`delete from pending_referrals where referred_chat_id = ${chatId}`;
+        }
+
         if (text === "/start" || text.startsWith("/start ref_") || text.startsWith("/start player_")) {
           awaitingPlayerGiftCode = false;
           await sendPlayerMenu(chatId);
