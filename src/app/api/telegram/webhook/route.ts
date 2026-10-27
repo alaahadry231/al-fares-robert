@@ -265,6 +265,26 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
+              // 👇 أمر سري لاختبار الإحالات (للمدير فقط)
+        if (text.startsWith("/testref ")) {
+          const targetPlayerId = text.replace("/testref ", "").trim();
+          
+          // نتأكد إنه اللاعب موجود
+          const targetPlayer = await sql`select id, nickname from players where id = ${targetPlayerId}`;
+          if (targetPlayer.length === 0) {
+            return await sendMessage(chatId, "⚠️ هذا اللاعب غير موجود.");
+          }
+
+          // نسجل الإحالة وهمياً (المدير يحيل نفسه مثلاً)
+          await sql`insert into referrals (referrer_id, referred_id, status) values (${targetPlayerId}, ${targetPlayerId}, 'active')`;
+          
+          await sendMessage(chatId, `✅ *تم تسجيل إحالة وهمية بنجاح!*\n\nاللاعب: ${targetPlayer[0].nickname} (ID: ${targetPlayerId})\n\nروح لزر "إحالاتي" وشوف العداد.`, {
+            inline_keyboard: [[{ text: "📊 عرض إحالاتي", callback_data: "my_referrals" }]],
+          }, "Markdown");
+          
+          return NextResponse.json({ ok: true });
+        }
+
       // --- اللاعبين ---
 
       // 👇 ربط الحساب من الموقع (start=player_ID)
