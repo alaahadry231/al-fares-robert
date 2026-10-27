@@ -3,14 +3,19 @@ import { sql } from "@/lib/db";
 
 const ADMIN_ID = "7597432185";
 const ADMIN_USERNAME = "FaresRobert";
-const CHANNEL_USERNAME = "@AlFaresRobert"; // 👈 ضع معرف قناتك هون (مثلاً @MyChannel)
+const CHANNEL_USERNAME = "@AlFaresRobert";
 
 let awaitingGiftCode = false;
 let tempGiftAmount = 0;
 let tempGiftUses = 0;
 let awaitingPlayerGiftCode = false;
 let adminReplyingToPlayer: string | null = null;
-let awaitingBroadcast = false;
+
+// 👇 حالات البث الجماعي (جديد)
+let awaitingBroadcastChoice = false; // هل بدو صورة؟
+let awaitingBroadcastPhoto = false; // استقبال رابط الصورة
+let awaitingBroadcastText = false; // استقبال النص
+let broadcastPhotoUrl = ""; // حفظ رابط الصورة مؤقتاً
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,7 +37,10 @@ export async function POST(req: NextRequest) {
       if (chatId === ADMIN_ID) {
         if (data === "main_menu") {
           awaitingGiftCode = false;
-          awaitingBroadcast = false;
+          awaitingBroadcastChoice = false;
+          awaitingBroadcastPhoto = false;
+          awaitingBroadcastText = false;
+          broadcastPhotoUrl = "";
           await sendAdminMainMenu(chatId, messageId);
         } else if (data === "codes_menu") {
           await sendCodesMenu(chatId, messageId);
@@ -54,12 +62,35 @@ export async function POST(req: NextRequest) {
           await editMessage(chatId, messageId, "🎁 *توليد كود هدية*\n\nأرسل لي قيمة الجائزة (مثلاً: 5000):", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
-        } else if (data === "broadcast_menu") {
-          awaitingBroadcast = true;
-          await editMessage(chatId, messageId, "📢 *الرسالة الجماعية*\n\nأرسل الآن الرسالة التي تريد إرسالها لجميع اللاعبين:", {
+        } 
+        // 👇 البث الجماعي (مع خيار الصورة)
+        else if (data === "broadcast_menu") {
+          awaitingBroadcastChoice = true;
+          await editMessage(chatId, messageId, "📢 *الرسالة الجماعية*\n\nهل تريد إرسال صورة مع الرسالة؟", {
+            inline_keyboard: [
+              [{ text: "🖼️ نعم، أرسل صورة", callback_data: "broadcast_with_photo" }],
+              [{ text: "📝 لا، نص فقط", callback_data: "broadcast_text_only" }],
+              [{ text: "⬅️ إلغاء", callback_data: "main_menu" }],
+            ],
+          }, "Markdown");
+        } 
+        // 👇 إذا اختار صورة
+        else if (data === "broadcast_with_photo") {
+          awaitingBroadcastChoice = false;
+          awaitingBroadcastPhoto = true;
+          await editMessage(chatId, messageId, "🖼️ *أرسل رابط الصورة الآن:*\n\n(يجب أن يكون رابطاً مباشراً للصورة، مثلاً من Imgur أو Catbox)", {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
-        } else if (data === "gen_10") {
+        } 
+        // 👇 إذا اختار نص فقط
+        else if (data === "broadcast_text_only") {
+          awaitingBroadcastChoice = false;
+          awaitingBroadcastText = true;
+          await editMessage(chatId, messageId, "📝 *أرسل النص الآن:*", {
+            inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
+          }, "Markdown");
+        }
+        else if (data === "gen_10") {
           await generateCodes(chatId, messageId, 10);
         } else if (data === "gen_50") {
           await generateCodes(chatId, messageId, 50);
@@ -101,7 +132,6 @@ export async function POST(req: NextRequest) {
           inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
         }, "Markdown");
       } else if (data === "check_subscription") {
-        // 👇 التحقق من الاشتراك بعد ما يضغط "تحقق"
         const isSubscribed = await checkSubscription(chatId);
         if (isSubscribed) {
           await sendPlayerMenu(chatId, messageId);
@@ -158,15 +188,37 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ ok: true });
         }
 
-        if (awaitingBroadcast) {
-          awaitingBroadcast = false;
-          await sendBroadcast(chatId, text);
+        // 👇 استقبال رابط الصورة
+        if (awaitingBroadcastPhoto) {
+          awaitingBroadcastPhoto = false;
+          broadcastPhotoUrl = text.trim();
+          awaitingBroadcastText = true;
+          await sendMessage(chatId, "✅ تم حفظ رابط الصورة.\n\n📝 *الآن أرسل النص الذي تريد إرساله مع الصورة:*", {
+            inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
+          }, "Markdown");
+          return NextResponse.json({ ok: true });
+        }
+
+        // 👇 استقبال النص (سواء مع صورة أو بدون)
+        if (awaitingBroadcastText) {
+          awaitingBroadcastText = false;
+          const photoToSend = broadcastPhotoUrl;
+          broadcastPhotoUrl = ""; // تصفير
+          
+          if (photoToSend) {
+            await sendBroadcastWithPhoto(chatId, text, photoToSend);
+          } else {
+            await sendBroadcast(chatId, text);
+          }
           return NextResponse.json({ ok: true });
         }
 
         if (text === "/admin" || text === "/start") {
           awaitingGiftCode = false;
-          awaitingBroadcast = false;
+          awaitingBroadcastChoice = false;
+          awaitingBroadcastPhoto = false;
+          awaitingBroadcastText = false;
+          broadcastPhotoUrl = "";
           await sendAdminMainMenu(chatId);
         }
         return NextResponse.json({ ok: true });
@@ -235,7 +287,7 @@ async function sendAdminMainMenu(chatId: string, messageId?: number) {
   const text = `👋 أهلاً بك يا مدير الموقع!\n\nاختر من القائمة التالية:`;
   const keyboard = {
     inline_keyboard: [
-      [{ text: "🎟️ إدارة الأكواد", callback_data: "codes_menu" }, { text: "🎁 توليد كود هدية", callback_data: "gift_menu" }], // 👈 زرين بصف
+      [{ text: "🎟️ إدارة الأكواد", callback_data: "codes_menu" }, { text: "🎁 توليد كود هدية", callback_data: "gift_menu" }],
       [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }, { text: "📊 الإحصائيات", callback_data: "stats_menu" }],
       [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }, { text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
       [{ text: "📢 رسالة جماعية", callback_data: "broadcast_menu" }],
@@ -381,6 +433,7 @@ async function viewAvailableCodes(chatId: string, messageId: number) {
   }
 }
 
+// 👇 دالة البث الجماعي (نص فقط)
 async function sendBroadcast(chatId: string, text: string) {
   try {
     await sendMessage(chatId, "⏳ جاري إرسال الرسالة للاعبين... انتظر قليلاً.");
@@ -403,6 +456,37 @@ async function sendBroadcast(chatId: string, text: string) {
     }, "Markdown");
   } catch (error) {
     await sendMessage(chatId, "❌ حدث خطأ أثناء إرسال الرسالة.");
+  }
+}
+
+// 👇 دالة البث الجماعي (صورة + نص)
+async function sendBroadcastWithPhoto(chatId: string, caption: string, photoUrl: string) {
+  try {
+    await sendMessage(chatId, "⏳ جاري إرسال الصورة والرسالة للاعبين... انتظر قليلاً.");
+    const players = await sql`select telegram_chat_id from players where telegram_chat_id is not null`;
+    if (players.length === 0) return await sendMessage(chatId, "⚠️ لا يوجد لاعبين مربوطين بالبوت حالياً.");
+    let successCount = 0;
+    for (const player of players) {
+      try {
+        await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            chat_id: player.telegram_chat_id, 
+            photo: photoUrl, 
+            caption: caption, 
+            parse_mode: "HTML" 
+          }),
+        });
+        successCount++;
+      } catch (e) { console.error(`Failed to send to ${player.telegram_chat_id}`); }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    await sendMessage(chatId, `✅ *تم إرسال الصورة والرسالة بنجاح!*\n\nوصلت لـ ${successCount} لاعب من أصل ${players.length}.`, {
+      inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
+    }, "Markdown");
+  } catch (error) {
+    await sendMessage(chatId, "❌ حدث خطأ أثناء إرسال الصورة.");
   }
 }
 
@@ -470,7 +554,7 @@ async function sendPlayerMenu(chatId: string, messageId?: number) {
   const text = `👋 أهلاً بك في Al Fares Robert!\n\nاختر من القائمة:`;
   const keyboard = {
     inline_keyboard: [
-      [{ text: "🎁 إدخال كود هدية", callback_data: "enter_gift_code" }, { text: "💰 رصيدي", callback_data: "check_balance" }], // 👈 زرين بصف
+      [{ text: "🎁 إدخال كود هدية", callback_data: "enter_gift_code" }, { text: "💰 رصيدي", callback_data: "check_balance" }],
       [{ text: "💸 استلام الرصيد", callback_data: "redeem_balance" }],
     ],
   };
