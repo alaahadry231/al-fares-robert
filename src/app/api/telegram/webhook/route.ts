@@ -357,8 +357,8 @@ async function showMyReferrals(chatId: string, messageId: number) {
   const player = await sql`select id from players where telegram_chat_id = ${chatId}`;
   if (player.length === 0) return editMessage(chatId, messageId, "⚠️ حسابك غير مربوط.", { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]] });
 
-  // 👇 فحص حالة نظام الإحالات
-  const settings = await sql`select is_active from referral_settings where id = 1`;
+  // 👇 فحص حالة نظام الإحالات (نجيب last_reset_at كمان عشان نحسب الوقت)
+  const settings = await sql`select last_reset_at, is_active from referral_settings where id = 1`;
   const isActive = settings.length > 0 ? settings[0].is_active : true;
 
   if (!isActive) {
@@ -383,7 +383,9 @@ async function showMyReferrals(chatId: string, messageId: number) {
   const active = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'active'`;
   const cancelled = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'cancelled'`;
 
-  const lastReset = settings.length > 0 ? new Date(settings[0].last_reset_at) : new Date();
+  const lastReset = (settings.length > 0 && settings[0].last_reset_at) 
+    ? new Date(settings[0].last_reset_at) 
+    : new Date();
   
   const endDate = new Date(lastReset.getTime() + 10 * 24 * 60 * 60 * 1000);
   const now = new Date();
