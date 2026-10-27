@@ -4,7 +4,7 @@ import { sql } from "@/lib/db";
 const ADMIN_ID = "7597432185";
 const ADMIN_USERNAME = "FaresRobert";
 const CHANNEL_USERNAME = "@AlFaresRobert";
-const BOT_USERNAME = "AlFaresRobert_bot"; // 👈 اسم البوت
+const BOT_USERNAME = "AlFaresRobert_bot";
 
 let awaitingGiftCode = false;
 let tempGiftAmount = 0;
@@ -12,7 +12,6 @@ let tempGiftUses = 0;
 let awaitingPlayerGiftCode = false;
 let adminReplyingToPlayer: string | null = null;
 
-// 👇 حالات البث الجماعي
 let awaitingBroadcastChoice = false;
 let awaitingBroadcastPhoto = false;
 let awaitingBroadcastText = false;
@@ -67,7 +66,6 @@ export async function POST(req: NextRequest) {
             inline_keyboard: [[{ text: "⬅️ إلغاء", callback_data: "main_menu" }]],
           }, "Markdown");
         } 
-        // 👇 أزرار الإحالات للمدير
         else if (data === "admin_referrals_report") {
           await sendReferralsReport(chatId, messageId);
         } else if (data === "admin_reset_referrals") {
@@ -78,13 +76,12 @@ export async function POST(req: NextRequest) {
             ],
           }, "Markdown");
         } else if (data === "confirm_reset_referrals") {
-          await sql`update referrals set status = 'cancelled'`; // إلغاء الكل
-          await sql`update referral_settings set last_reset_at = now() where id = 1`; // تصفير الوقت
+          await sql`update referrals set status = 'cancelled'`;
+          await sql`update referral_settings set last_reset_at = now() where id = 1`;
           await editMessage(chatId, messageId, "✅ *تم تصفير جميع الإحالات بنجاح!* بدأ عداد جديد لـ 10 أيام.", {
             inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "main_menu" }]],
           }, "Markdown");
         }
-        // 👇 البث الجماعي
         else if (data === "broadcast_menu") {
           awaitingBroadcastChoice = true;
           await editMessage(chatId, messageId, "📢 *الرسالة الجماعية*\n\nهل تريد إرسال صورة مع الرسالة؟", {
@@ -120,7 +117,6 @@ export async function POST(req: NextRequest) {
           awaitingBroadcastButtonChoice = false;
           await sendBroadcastFinal(chatId, messageId);
         }
-        // 👇 أزرار الأكواد
         else if (data === "gen_10") {
           await generateCodes(chatId, messageId, 10);
         } else if (data === "gen_50") {
@@ -128,7 +124,6 @@ export async function POST(req: NextRequest) {
         } else if (data === "view_codes") {
           await viewAvailableCodes(chatId, messageId);
         }
-        // 👇 أزرار الجوائز واللاعبين
         else if (data.startsWith("deliver_")) {
           const prizeId = data.split("_")[1];
           await deliverPrize(chatId, messageId, parseInt(prizeId));
@@ -165,7 +160,6 @@ export async function POST(req: NextRequest) {
           inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "player_menu" }]],
         }, "Markdown");
       } 
-      // 👇 زر إحالاتي للاعب
       else if (data === "my_referrals") {
         await showMyReferrals(chatId, messageId);
       }
@@ -223,7 +217,6 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ ok: true });
         }
 
-        // 👇 البث الجماعي (استقبال الخطوات)
         if (awaitingBroadcastPhoto) {
           awaitingBroadcastPhoto = false;
           broadcastPhotoUrl = text.trim();
@@ -260,7 +253,7 @@ export async function POST(req: NextRequest) {
         if (awaitingBroadcastButtonUrl) {
           awaitingBroadcastButtonUrl = false;
           broadcastButtonUrl = text.trim();
-          await sendBroadcastFinal(chatId); // 👈 تنفيذ البث
+          await sendBroadcastFinal(chatId);
           return NextResponse.json({ ok: true });
         }
 
@@ -272,20 +265,33 @@ export async function POST(req: NextRequest) {
       }
 
       // --- اللاعبين ---
+
+      // 👇 ربط الحساب من الموقع (start=player_ID)
+      if (text.startsWith("/start player_")) {
+        const targetPlayerId = text.replace("/start player_", "").trim();
+        
+        // تحديث الـ telegram_chat_id للاعب
+        await sql`
+          update players 
+          set telegram_chat_id = ${chatId}, updated_at = now()
+          where id = ${targetPlayerId}
+        `;
+        
+        // إرسال رسالة تأكيد
+        await sendMessage(chatId, `✅ *تم ربط حسابك بالبوت بنجاح!*\n\nمن الآن رح توصلك إشعارات الجوائز والتوقعات هنا.`);
+      }
+
       // 👇 التحقق من الإحالة عند دخول لاعب جديد بـ /start ref_123
       if (text.startsWith("/start ref_")) {
         const referrerId = text.replace("/start ref_", "").trim();
         const player = await sql`select id from players where telegram_chat_id = ${chatId}`;
         
         if (player.length > 0) {
-          // اللاعب موجود، نسجل الإحالة إذا ما كان مسجل قبل
           const existing = await sql`select id from referrals where referred_id = ${player[0].id}`;
           if (existing.length === 0 && player[0].id.toString() !== referrerId) {
-            // نسجل الإحالة
             await sql`insert into referrals (referrer_id, referred_id) values (${referrerId}, ${player[0].id})`;
           }
         }
-        // نكمل للتحقق من الاشتراك والقائمة
       }
 
       const isSubscribed = await checkSubscription(chatId);
@@ -302,7 +308,7 @@ export async function POST(req: NextRequest) {
       const player = await sql`select id, nickname, wallet_balance, telegram_username from players where telegram_chat_id = ${chatId}`;
       
       if (player.length > 0) {
-        if (text === "/start" || text.startsWith("/start ref_")) {
+        if (text === "/start" || text.startsWith("/start ref_") || text.startsWith("/start player_")) {
           awaitingPlayerGiftCode = false;
           await sendPlayerMenu(chatId);
         } else if (awaitingPlayerGiftCode) {
@@ -333,15 +339,12 @@ async function showMyReferrals(chatId: string, messageId: number) {
 
   const playerId = player[0].id;
 
-  // جلب الإحالات النشطة والملغية
   const active = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'active'`;
   const cancelled = await sql`select count(*)::int as count from referrals where referrer_id = ${playerId} and status = 'cancelled'`;
 
-  // جلب وقت آخر تصفير
   const settings = await sql`select last_reset_at from referral_settings where id = 1`;
   const lastReset = settings.length > 0 ? new Date(settings[0].last_reset_at) : new Date();
   
-  // حساب الوقت المتبقي (10 أيام)
   const endDate = new Date(lastReset.getTime() + 10 * 24 * 60 * 60 * 1000);
   const now = new Date();
   const diff = endDate.getTime() - now.getTime();
@@ -396,7 +399,6 @@ async function sendReferralsReport(chatId: string, messageId: number) {
   }, "Markdown");
 }
 
-// ================= دوال التحقق من الاشتراك =================
 async function checkSubscription(chatId: string): Promise<boolean> {
   try {
     const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getChatMember`, {
@@ -414,7 +416,8 @@ async function checkSubscription(chatId: string): Promise<boolean> {
   }
 }
 
-// ================= دوال المدير =================
+// ... (باقي الدوال المساعدة زي ما هي)
+
 async function sendAdminMainMenu(chatId: string, messageId?: number) {
   const text = `👋 أهلاً بك يا مدير الموقع!\n\nاختر من القائمة التالية:`;
   const keyboard = {
@@ -430,8 +433,6 @@ async function sendAdminMainMenu(chatId: string, messageId?: number) {
   if (messageId) await editMessage(chatId, messageId, text, keyboard);
   else await sendMessage(chatId, text, keyboard);
 }
-
-// ... (باقي دوال المدير: sendCodesMenu, sendGiftCodesList, sendGiftCodeDetails, generateCodes, viewAvailableCodes, sendBroadcastFinal, resetBroadcastState, sendStatsMenu, sendPrizesMenu, deliverPrize, sendPlayersMenu, toggleBan)
 
 async function sendCodesMenu(chatId: string, messageId: number) {
   const text = `🎟️ *إدارة الأكواد*\n\nاختر الإجراء اللي بدك ياه:`;
@@ -652,7 +653,6 @@ async function toggleBan(chatId: string, messageId: number, playerId: number, ba
   await sendPlayersMenu(chatId, messageId);
 }
 
-// ================= دوال اللاعبين =================
 async function sendPlayerMenu(chatId: string, messageId?: number) {
   const text = `👋 أهلاً بك في Al Fares Robert!\n\nاختر من القائمة:`;
   const keyboard = {
@@ -720,7 +720,6 @@ async function tryUseGiftCode(chatId: string, code: string, playerId: number) {
   }
 }
 
-// ================= دوال مساعدة =================
 async function sendMessage(chatId: string, text: string, keyboard?: any, parseMode?: string) {
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
