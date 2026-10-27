@@ -51,10 +51,7 @@ header {
   backdrop-filter: blur(8px);
 }
 
-/* استيراد خط Cairo من Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
-
-/* تطبيق الخط على كل الموقع */
+/* ربط الخط بالموقع */
 body {
-  font-family: 'Cairo', sans-serif;
+  font-family: var(--font-cairo), sans-serif;
 }
