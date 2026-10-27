@@ -35,9 +35,9 @@ export async function POST(req: NextRequest) {
           await sendAdminMainMenu(chatId, messageId);
         } else if (data === "codes_menu") {
           await sendCodesMenu(chatId, messageId);
-        } else if (data === "gift_history_menu") { // 👈 الزر الجديد
+        } else if (data === "gift_history_menu") {
           await sendGiftCodesList(chatId, messageId);
-        } else if (data.startsWith("gift_details_")) { // 👈 عرض تفاصيل كود معين
+        } else if (data.startsWith("gift_details_")) {
           const codeId = data.split("_")[2];
           await sendGiftCodeDetails(chatId, messageId, parseInt(codeId));
         } else if (data === "stats_menu") {
@@ -193,7 +193,7 @@ async function sendAdminMainMenu(chatId: string, messageId?: number) {
     inline_keyboard: [
       [{ text: "🎟️ إدارة الأكواد", callback_data: "codes_menu" }],
       [{ text: "🎁 توليد كود هدية", callback_data: "gift_menu" }],
-      [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }], // 👈 الزر الجديد
+      [{ text: "📜 سجل أكواد الهدايا", callback_data: "gift_history_menu" }],
       [{ text: "📊 الإحصائيات", callback_data: "stats_menu" }],
       [{ text: "🎁 الجوائز المعلقة", callback_data: "prizes_menu" }],
       [{ text: "👥 إدارة اللاعبين", callback_data: "players_menu" }],
@@ -217,7 +217,6 @@ async function sendCodesMenu(chatId: string, messageId: number) {
   });
 }
 
-// 👇 دالة عرض قائمة أكواد الهدايا
 async function sendGiftCodesList(chatId: string, messageId: number) {
   const codes = await sql`
     select id, code, amount, max_uses, used_count 
@@ -242,7 +241,7 @@ async function sendGiftCodesList(chatId: string, messageId: number) {
   await editMessage(chatId, messageId, text, { inline_keyboard: keyboardRows }, "Markdown");
 }
 
-// 👇 دالة عرض تفاصيل كود معين
+// 👇 الدالة المعدلة: إضافة username وزر تواصل
 async function sendGiftCodeDetails(chatId: string, messageId: number, codeId: number) {
   try {
     const codeInfo = await sql`select * from gift_codes where id = ${codeId}`;
@@ -250,9 +249,8 @@ async function sendGiftCodeDetails(chatId: string, messageId: number, codeId: nu
 
     const code = codeInfo[0];
 
-    // جلب من استخدم الكود
     const history = await sql`
-      select h.used_at, p.nickname 
+      select h.used_at, p.nickname, p.telegram_username 
       from gift_code_history h
       join players p on h.player_id = p.id
       where h.code_id = ${codeId}
@@ -265,17 +263,35 @@ async function sendGiftCodeDetails(chatId: string, messageId: number, codeId: nu
     text += `✅ *تم استخدامه:* ${code.used_count} مرة\n\n`;
     text += `👥 *المستخدمون:*\n`;
 
+    const keyboardRows: any[] = [];
+
     if (history.length === 0) {
       text += "لا أحد استخدم هذا الكود بعد.";
     } else {
       history.forEach((h: any, i: number) => {
-        const date = new Date(h.used_at).toLocaleString("ar-EG", { timeZone: "Asia/Damascus", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-        text += `${i + 1}. ${h.nickname} - ${date}\n`;
+        const date = new Date(h.used_at).toLocaleString("ar-EG", { 
+          timeZone: "Asia/Damascus", 
+          month: "short", 
+          day: "numeric", 
+          hour: "2-digit", 
+          minute: "2-digit" 
+        });
+        
+        const usernameDisplay = h.telegram_username ? ` (@${h.telegram_username})` : "";
+        text += `${i + 1}. ${h.nickname}${usernameDisplay} - ${date}\n`;
+
+        if (h.telegram_username) {
+          keyboardRows.push([
+            { text: `💬 تواصل مع ${h.nickname}`, url: `https://t.me/${h.telegram_username}` }
+          ]);
+        }
       });
     }
 
+    keyboardRows.push([{ text: "⬅️ رجوع للسجل", callback_data: "gift_history_menu" }]);
+
     await editMessage(chatId, messageId, text, {
-      inline_keyboard: [[{ text: "⬅️ رجوع للسجل", callback_data: "gift_history_menu" }]],
+      inline_keyboard: keyboardRows,
     }, "Markdown");
 
   } catch (error) {
