@@ -420,11 +420,16 @@ async function checkSubscription(chatId: string): Promise<boolean> {
       body: JSON.stringify({ chat_id: CHANNEL_USERNAME, user_id: chatId }),
     });
     const data = await res.json();
+    
+    // 👇 نطبع النتيجة عشان نشوف شو صاير
+    console.log("Check subscription for", chatId, ":", data);
+    
     if (data.ok && (data.result.status === "member" || data.result.status === "administrator" || data.result.status === "creator")) {
       return true;
     }
     return false;
-  } catch {
+  } catch (error) {
+    console.error("Check subscription error:", error);
     return false;
   }
 }
